@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { ImportedFile, FileType } from '@/lib/storage';
 
 interface FileListProps {
   files: ImportedFile[];
   onDelete: (id: string) => void;
+  onRename: (id: string, newName: string) => void;
 }
 
 function getFileTypeStyles(type: FileType): { bg: string; text: string; icon: ReactNode } {
@@ -64,7 +65,101 @@ function formatDate(dateString: string): string {
   });
 }
 
-export default function FileList({ files, onDelete }: FileListProps) {
+function FileRow({
+  file,
+  onDelete,
+  onRename,
+}: {
+  file: ImportedFile;
+  onDelete: (id: string) => void;
+  onRename: (id: string, newName: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(file.displayName);
+  const styles = getFileTypeStyles(file.fileType);
+
+  const handleSave = () => {
+    if (editName.trim() && editName !== file.displayName) {
+      onRename(file.id, editName.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditName(file.displayName);
+      setIsEditing(false);
+    }
+  };
+
+  return (
+    <li className="hover:bg-gray-50 transition-colors">
+      <div className="px-6 py-4 flex items-center gap-4">
+        <div className={`p-2 rounded-lg ${styles.bg} ${styles.text}`}>
+          {styles.icon}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {isEditing ? (
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              autoFocus
+              className="w-full px-2 py-1 text-gray-900 font-medium border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          ) : (
+            <Link
+              href={`/view/${file.id}`}
+              className="text-gray-900 font-medium hover:text-blue-600 truncate block"
+            >
+              {file.displayName}
+            </Link>
+          )}
+          <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+            <span className={`px-2 py-0.5 rounded-full text-xs ${styles.bg} ${styles.text}`}>
+              {getFileTypeLabel(file.fileType)}
+            </span>
+            <span>{formatDate(file.importedAt)}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setEditName(file.displayName);
+              setIsEditing(true);
+            }}
+            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+            title="Rename"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+          <Link
+            href={`/view/${file.id}`}
+            className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+          >
+            View
+          </Link>
+          <button
+            onClick={() => onDelete(file.id)}
+            className="px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+export default function FileList({ files, onDelete, onRename }: FileListProps) {
   if (files.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-md p-8 text-center">
@@ -94,49 +189,14 @@ export default function FileList({ files, onDelete }: FileListProps) {
       </div>
 
       <ul className="divide-y divide-gray-200">
-        {files.map((file) => {
-          const styles = getFileTypeStyles(file.fileType);
-
-          return (
-            <li key={file.id} className="hover:bg-gray-50 transition-colors">
-              <div className="px-6 py-4 flex items-center gap-4">
-                <div className={`p-2 rounded-lg ${styles.bg} ${styles.text}`}>
-                  {styles.icon}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <Link
-                    href={`/view/${file.id}`}
-                    className="text-gray-900 font-medium hover:text-blue-600 truncate block"
-                  >
-                    {file.displayName}
-                  </Link>
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${styles.bg} ${styles.text}`}>
-                      {getFileTypeLabel(file.fileType)}
-                    </span>
-                    <span>{formatDate(file.importedAt)}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/view/${file.id}`}
-                    className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                  >
-                    View
-                  </Link>
-                  <button
-                    onClick={() => onDelete(file.id)}
-                    className="px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </li>
-          );
-        })}
+        {files.map((file) => (
+          <FileRow
+            key={file.id}
+            file={file}
+            onDelete={onDelete}
+            onRename={onRename}
+          />
+        ))}
       </ul>
     </div>
   );

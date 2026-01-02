@@ -27,6 +27,16 @@ IMPORTANT RULES:
 11. Always include a title/header for the visualization
 12. Use relative units (rem, %, etc.) so it scales well
 
+JAVASCRIPT RULES (CRITICAL):
+- Prefer CSS-only solutions (hover effects, :target, details/summary, checkbox hacks) over JavaScript
+- If you MUST use JavaScript for interactivity (popups, modals, clicks):
+  - ALL functions must be defined inline in a <script> tag within your HTML
+  - Use onclick="(function(){ ... })()" pattern for inline handlers, OR
+  - Define named functions in a <script> tag BEFORE they are referenced
+  - NEVER reference functions that aren't defined in your output
+  - For modals/popups, include the modal HTML, the show/hide functions, and the click handlers all together
+- Test mentally: if your HTML were inserted into an empty div, would all functions exist?
+
 Start with a reasonable default visualization based on the document type, then refine based on user feedback.`;
 
 export async function POST(request: NextRequest) {

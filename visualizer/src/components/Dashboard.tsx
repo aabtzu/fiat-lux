@@ -42,10 +42,28 @@ export default function Dashboard({ initialFiles }: DashboardProps) {
     }
   };
 
+  const handleRename = async (id: string, newName: string) => {
+    try {
+      const response = await fetch('/api/files', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, displayName: newName }),
+      });
+
+      if (response.ok) {
+        setFiles((prev) =>
+          prev.map((f) => (f.id === id ? { ...f, displayName: newName } : f))
+        );
+      }
+    } catch (error) {
+      console.error('Error renaming file:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <FileUpload onUploadComplete={refreshFiles} />
-      <FileList files={files} onDelete={handleDelete} />
+      <FileList files={files} onDelete={handleDelete} onRename={handleRename} />
     </div>
   );
 }

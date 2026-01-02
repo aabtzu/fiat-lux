@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStorage, addExtractedFile, deleteFile } from '@/lib/storage';
+import { getStorage, addExtractedFile, deleteFile, updateFileName } from '@/lib/storage';
 import { extractDocument, getMimeType } from '@/lib/documentExtractor';
 
 export async function GET() {
@@ -44,6 +44,27 @@ export async function POST(request: NextRequest) {
       { error: error instanceof Error ? error.message : 'Failed to upload file' },
       { status: 500 }
     );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { id, displayName } = await request.json();
+
+    if (!id || !displayName) {
+      return NextResponse.json({ error: 'Missing id or displayName' }, { status: 400 });
+    }
+
+    const updated = await updateFileName(id, displayName);
+
+    if (!updated) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error updating file:', error);
+    return NextResponse.json({ error: 'Failed to update file' }, { status: 500 });
   }
 }
 

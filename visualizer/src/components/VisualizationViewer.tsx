@@ -36,11 +36,36 @@ export default function VisualizationViewer({ html, isLoading }: VisualizationVi
     );
   }
 
+  // Wrap the HTML in a full document with base styles
+  const fullHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+      color: #1f2937;
+    }
+  </style>
+</head>
+<body>
+${html}
+</body>
+</html>`;
+
   return (
-    <div className="h-full overflow-auto bg-white rounded-lg shadow-inner">
-      <div
-        className="p-6 min-h-full"
-        dangerouslySetInnerHTML={{ __html: html }}
+    <div className="h-full overflow-hidden bg-white rounded-lg shadow-inner">
+      <iframe
+        srcDoc={fullHtml}
+        className="w-full h-full border-0"
+        title="Visualization"
+        sandbox="allow-scripts allow-modals"
       />
     </div>
   );

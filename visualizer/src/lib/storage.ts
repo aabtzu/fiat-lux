@@ -174,6 +174,21 @@ export async function updateFileState(
   return true;
 }
 
+export async function updateFileName(
+  id: string,
+  displayName: string
+): Promise<boolean> {
+  const storage = await getStorage();
+  const fileIndex = storage.files.findIndex((f) => f.id === id);
+
+  if (fileIndex === -1) return false;
+
+  storage.files[fileIndex].displayName = displayName;
+  await saveStorage(storage);
+
+  return true;
+}
+
 export async function deleteFile(id: string): Promise<boolean> {
   const storage = await getStorage();
   const fileIndex = storage.files.findIndex((f) => f.id === id);
