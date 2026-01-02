@@ -38,7 +38,7 @@ export default function InteractiveView({ fileId, fileName }: InteractiveViewPro
     <div className="flex flex-1 min-h-0 gap-4">
       {/* Main visualization area */}
       <div className={`flex-1 min-h-0 transition-all duration-300 ${isChatOpen ? '' : 'w-full'}`}>
-        <VisualizationViewer html={visualization} isLoading={!visualization && isLoading} />
+        <VisualizationViewer html={visualization} isLoading={!visualization && isLoading} fileName={fileName} />
       </div>
 
       {/* Chat toggle button (when closed) */}
