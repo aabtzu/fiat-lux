@@ -63,6 +63,18 @@ HANDLING NEW DATA FILES:
 
 Start with a reasonable default visualization based on the document type, then refine based on user feedback.`;
 
+// Shorter system prompt for refinement requests (no document context needed)
+const REFINEMENT_SYSTEM_PROMPT = `You are a visualization expert refining an existing HTML/CSS visualization.
+
+IMPORTANT RULES:
+1. Output ONLY the updated HTML content - no markdown, no code fences, no explanations
+2. Preserve the existing data and structure unless asked to change it
+3. Apply the requested changes while keeping everything else intact
+4. Use inline styles or a <style> tag - no external CSS
+5. Maintain any existing JavaScript functionality
+
+You will receive the current visualization HTML and a modification request. Make the requested changes and return the complete updated HTML.`;
+
 export async function POST(request: NextRequest) {
   try {
     const { fileId, message, history, currentVisualization, additionalFileIds } = await request.json();
@@ -71,7 +83,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing fileId or message' }, { status: 400 });
     }
 
-    // Get the main file content
+    // Check if this is a refinement request (has existing visualization and history)
+    const isRefinement = currentVisualization && history && history.length > 0;
+
+    // For refinements, we skip loading document content entirely
+    if (isRefinement) {
+      const messages: Anthropic.MessageParam[] = [
+        {
+          role: 'user',
+          content: `Current visualization HTML:\n\n${currentVisualization}\n\n---\n\nPlease make this change: ${message}`,
+        },
+      ];
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 16384,
+        system: REFINEMENT_SYSTEM_PROMPT,
+        messages,
+      });
+
+      const assistantContent = response.content[0];
+      if (assistantContent.type !== 'text') {
+        return NextResponse.json({ error: 'Unexpected response type' }, { status: 500 });
+      }
+
+      let html = assistantContent.text;
+      html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
+      html = html.trim();
+
+      return NextResponse.json({
+        visualization: html,
+        message: 'Visualization updated',
+      });
+    }
+
+    // Full context flow for initial generation or when adding new data
     const file = await getFile(fileId);
     if (!file) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
@@ -115,34 +161,11 @@ ${content}
 ${sourceFilesContext}${additionalContext}
 ${currentVisualization ? `Current visualization HTML:\n${currentVisualization}\n---\n` : ''}`;
 
-    // Add conversation history
-    if (history && history.length > 0) {
-      // First message includes context
-      messages.push({
-        role: 'user',
-        content: contextMessage + '\n\n' + history[0].content,
-      });
-
-      // Add rest of history
-      for (let i = 1; i < history.length; i++) {
-        messages.push({
-          role: history[i].role,
-          content: history[i].content,
-        });
-      }
-
-      // Add current message
-      messages.push({
-        role: 'user',
-        content: message,
-      });
-    } else {
-      // First message
-      messages.push({
-        role: 'user',
-        content: contextMessage + '\n\nUser request: ' + message,
-      });
-    }
+    // First message includes full context
+    messages.push({
+      role: 'user',
+      content: contextMessage + '\n\nUser request: ' + message,
+    });
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
