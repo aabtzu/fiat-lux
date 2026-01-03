@@ -9,7 +9,7 @@ interface FileUploadProps {
 export default function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [displayName, setDisplayName] = useState('');
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -25,27 +25,27 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
     e.preventDefault();
     setIsDragging(false);
 
-    const files = e.dataTransfer.files;
+    const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      await uploadFile(files[0]);
+      await uploadFiles(files);
     }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      await uploadFile(files[0]);
+      await uploadFiles(Array.from(files));
     }
   };
 
-  const uploadFile = async (file: File) => {
+  const uploadFiles = async (files: File[]) => {
     setIsUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      if (displayName.trim()) {
-        formData.append('displayName', displayName.trim());
+      for (const file of files) {
+        formData.append('file', file);
       }
 
       const response = await fetch('/api/files', {
@@ -57,13 +57,13 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
         throw new Error('Upload failed');
       }
 
-      setDisplayName('');
       onUploadComplete();
     } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Failed to upload file. Please try again.');
+      console.error('Error uploading files:', error);
+      alert('Failed to upload files. Please try again.');
     } finally {
       setIsUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -72,21 +72,7 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Import New File</h2>
-
-      <div className="mb-4">
-        <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">
-          Display Name (optional)
-        </label>
-        <input
-          type="text"
-          id="displayName"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="e.g., Spring 2026 Schedule"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">Import Files</h2>
 
       <div
         onDragOver={handleDragOver}
@@ -102,8 +88,9 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           onChange={handleFileSelect}
-          accept=".txt,.csv,.json,.pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+          accept=".txt,.csv,.json,.pdf,.doc,.docx,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp"
           className="hidden"
         />
 
@@ -129,7 +116,7 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
               />
             </svg>
-            <p>Processing document...</p>
+            <p>Processing {uploadProgress.total > 1 ? `file ${uploadProgress.current} of ${uploadProgress.total}` : 'document'}...</p>
             <p className="text-sm text-gray-400 mt-1">Extracting content with AI</p>
           </div>
         ) : (
@@ -148,10 +135,10 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
               />
             </svg>
             <p className="text-gray-600 mb-1">
-              Drag and drop a file here, or click to browse
+              Drag and drop files here, or click to browse
             </p>
             <p className="text-sm text-gray-400">
-              PDF, Word, Images, Text, CSV, JSON
+              PDF, Word, Excel, Images, Text, CSV, JSON
             </p>
           </>
         )}

@@ -43,7 +43,11 @@ export default async function ViewPage({ params }: ViewPageProps) {
           </div>
         </header>
 
-        <InteractiveView fileId={id} fileName={file.displayName} />
+        <InteractiveView
+          fileId={id}
+          fileName={file.displayName}
+          initialSourceFiles={file.sourceFiles || []}
+        />
       </div>
     </div>
   );

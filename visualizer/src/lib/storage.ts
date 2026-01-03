@@ -8,6 +8,14 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface SourceFile {
+  id: string;
+  originalName: string;
+  filePath: string;
+  mimeType?: string;
+  addedAt: string;
+}
+
 export interface ImportedFile {
   id: string;
   originalName: string;
@@ -19,6 +27,7 @@ export interface ImportedFile {
   structured?: Record<string, unknown>;
   visualization?: string;
   chatHistory?: ChatMessage[];
+  sourceFiles?: SourceFile[];
 }
 
 export interface StorageData {
@@ -204,7 +213,84 @@ export async function deleteFile(id: string): Promise<boolean> {
     // File might already be deleted
   }
 
+  // Also delete source files
+  if (file.sourceFiles) {
+    for (const sf of file.sourceFiles) {
+      try {
+        await fs.unlink(path.join(IMPORTS_DIR, sf.filePath));
+      } catch {
+        // File might already be deleted
+      }
+    }
+  }
+
   storage.files.splice(fileIndex, 1);
+  await saveStorage(storage);
+
+  return true;
+}
+
+export async function addSourceFile(
+  documentId: string,
+  extractedText: string,
+  originalName: string,
+  mimeType?: string
+): Promise<SourceFile | null> {
+  await ensureDirectories();
+
+  const storage = await getStorage();
+  const fileIndex = storage.files.findIndex((f) => f.id === documentId);
+
+  if (fileIndex === -1) return null;
+
+  const sourceId = generateId();
+  const fileName = `${sourceId}.txt`;
+  const filePath = path.join(IMPORTS_DIR, fileName);
+
+  await fs.writeFile(filePath, extractedText);
+
+  const sourceFile: SourceFile = {
+    id: sourceId,
+    originalName,
+    filePath: fileName,
+    mimeType,
+    addedAt: new Date().toISOString(),
+  };
+
+  if (!storage.files[fileIndex].sourceFiles) {
+    storage.files[fileIndex].sourceFiles = [];
+  }
+  storage.files[fileIndex].sourceFiles.push(sourceFile);
+  await saveStorage(storage);
+
+  return sourceFile;
+}
+
+export async function getSourceFileContent(sourceFile: SourceFile): Promise<string> {
+  const filePath = path.join(IMPORTS_DIR, sourceFile.filePath);
+  return fs.readFile(filePath, 'utf-8');
+}
+
+export async function removeSourceFile(documentId: string, sourceFileId: string): Promise<boolean> {
+  const storage = await getStorage();
+  const fileIndex = storage.files.findIndex((f) => f.id === documentId);
+
+  if (fileIndex === -1) return false;
+
+  const file = storage.files[fileIndex];
+  if (!file.sourceFiles) return false;
+
+  const sfIndex = file.sourceFiles.findIndex((sf) => sf.id === sourceFileId);
+  if (sfIndex === -1) return false;
+
+  const sf = file.sourceFiles[sfIndex];
+  try {
+    await fs.unlink(path.join(IMPORTS_DIR, sf.filePath));
+  } catch {
+    // File might already be deleted
+  }
+
+  file.sourceFiles.splice(sfIndex, 1);
   await saveStorage(storage);
 
   return true;

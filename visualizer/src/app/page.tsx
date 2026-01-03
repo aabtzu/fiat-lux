@@ -11,12 +11,10 @@ export default async function Home() {
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 py-8 px-4">
       <div className="max-w-4xl mx-auto">
         <header className="mb-8 flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">Fiat Lux</h1>
-            <p className="text-gray-600 mt-2">
-              Shedding light on information
-            </p>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-800">
+            Fiat Lux
+            <span className="text-base font-normal text-gray-400 ml-3">shedding light on information</span>
+          </h1>
           <Link
             href="/about"
             className="text-gray-500 hover:text-gray-700 transition-colors"

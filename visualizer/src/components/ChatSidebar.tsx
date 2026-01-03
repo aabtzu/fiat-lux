@@ -15,6 +15,8 @@ interface ChatSidebarProps {
   setIsLoading: (loading: boolean) => void;
   abortControllerRef: MutableRefObject<AbortController | null>;
   onCancel: () => void;
+  pendingMessage?: string | null;
+  onPendingMessageHandled?: () => void;
 }
 
 export default function ChatSidebar({
@@ -25,6 +27,8 @@ export default function ChatSidebar({
   setIsLoading,
   abortControllerRef,
   onCancel,
+  pendingMessage,
+  onPendingMessageHandled,
 }: ChatSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -139,11 +143,8 @@ export default function ChatSidebar({
     loadOrGenerate();
   }, [hasInitialized, fileId, onVisualizationUpdate, saveState, setIsLoading, abortControllerRef]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-
-    const userMessage = input.trim();
-    setInput('');
+  const sendMessageWithContent = async (userMessage: string) => {
+    if (!userMessage.trim() || isLoading) return;
 
     const newMessages: Message[] = [...messages, { role: 'user', content: userMessage }];
     setMessages(newMessages);
@@ -195,6 +196,21 @@ export default function ChatSidebar({
       abortControllerRef.current = null;
     }
   };
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+    const userMessage = input.trim();
+    setInput('');
+    await sendMessageWithContent(userMessage);
+  };
+
+  // Handle pending messages (e.g., from file uploads)
+  useEffect(() => {
+    if (pendingMessage && !isLoading && hasInitialized) {
+      sendMessageWithContent(pendingMessage);
+      onPendingMessageHandled?.();
+    }
+  }, [pendingMessage, isLoading, hasInitialized]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { getFile, getFileContent } from '@/lib/storage';
+import { getFile, getFileContent, getSourceFileContent } from '@/lib/storage';
 
 const anthropic = new Anthropic();
 
@@ -27,33 +27,78 @@ IMPORTANT RULES:
 11. Always include a title/header for the visualization
 12. Use relative units (rem, %, etc.) so it scales well
 
+DATA-DRIVEN APPROACH (CRITICAL for large datasets):
+- ALWAYS use a data-driven approach: define data as a JavaScript array/object, then render it dynamically
+- Example structure:
+  <script>
+    const data = [
+      {date: "2025-01-01", description: "Item 1", amount: 100},
+      {date: "2025-01-02", description: "Item 2", amount: 200},
+    ];
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = data.map(row => \`<tr><td>\${row.date}</td><td>\${row.description}</td><td>$\${row.amount}</td></tr>\`).join('');
+    }
+    document.addEventListener('DOMContentLoaded', renderTable);
+  </script>
+- This keeps HTML small regardless of data size
+- Makes sorting, filtering, and searching easy to implement
+- Avoids output truncation issues with large datasets
+
 JAVASCRIPT RULES (CRITICAL):
-- Prefer CSS-only solutions (hover effects, :target, details/summary, checkbox hacks) over JavaScript
-- If you MUST use JavaScript for interactivity (popups, modals, clicks):
+- Prefer CSS-only solutions (hover effects, :target, details/summary, checkbox hacks) over JavaScript when possible
+- When using JavaScript for interactivity:
   - ALL functions must be defined inline in a <script> tag within your HTML
-  - Use onclick="(function(){ ... })()" pattern for inline handlers, OR
-  - Define named functions in a <script> tag BEFORE they are referenced
-  - NEVER reference functions that aren't defined in your output
-  - For modals/popups, include the modal HTML, the show/hide functions, and the click handlers all together
+  - Define data arrays at the top of the script
+  - Use template literals to render data dynamically
+  - For sorting: sort the data array, then re-render
+  - For modals: pass an index or ID to look up data, don't duplicate data in HTML
 - Test mentally: if your HTML were inserted into an empty div, would all functions exist?
+
+HANDLING NEW DATA FILES:
+- When new files are added to an existing visualization, analyze if the new data is similar to existing data
+- If SIMILAR (same type, same columns/fields): automatically incorporate into the existing visualization, update totals/summaries, add new rows to tables
+- If DIFFERENT: briefly describe what the new data contains, suggest how it could be incorporated (new section, separate table, combined view), and ask the user what they'd prefer
+- Always mention what was added: "I've added X new records from [filename]" or "The new file contains [description] - how would you like me to incorporate it?"
 
 Start with a reasonable default visualization based on the document type, then refine based on user feedback.`;
 
 export async function POST(request: NextRequest) {
   try {
-    const { fileId, message, history, currentVisualization } = await request.json();
+    const { fileId, message, history, currentVisualization, additionalFileIds } = await request.json();
 
     if (!fileId || !message) {
       return NextResponse.json({ error: 'Missing fileId or message' }, { status: 400 });
     }
 
-    // Get the file content
+    // Get the main file content
     const file = await getFile(fileId);
     if (!file) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
     const content = await getFileContent(file);
+
+    // Get source files content (files that are part of this document)
+    let sourceFilesContext = '';
+    if (file.sourceFiles && file.sourceFiles.length > 0) {
+      for (const sf of file.sourceFiles) {
+        const sfContent = await getSourceFileContent(sf);
+        sourceFilesContext += `\n---\nSource File: ${sf.originalName}\n---\n${sfContent}\n`;
+      }
+    }
+
+    // Get additional context files (from other documents, if any)
+    let additionalContext = '';
+    if (additionalFileIds && additionalFileIds.length > 0) {
+      for (const addFileId of additionalFileIds) {
+        const addFile = await getFile(addFileId);
+        if (addFile) {
+          const addContent = await getFileContent(addFile);
+          additionalContext += `\n---\nAdditional Document: ${addFile.displayName}\nType: ${addFile.fileType}\n---\n${addContent}\n`;
+        }
+      }
+    }
 
     // Build the messages array
     const messages: Anthropic.MessageParam[] = [];
@@ -67,7 +112,7 @@ Type: ${file.fileType}
 ---
 ${content}
 ---
-
+${sourceFilesContext}${additionalContext}
 ${currentVisualization ? `Current visualization HTML:\n${currentVisualization}\n---\n` : ''}`;
 
     // Add conversation history
@@ -101,7 +146,7 @@ ${currentVisualization ? `Current visualization HTML:\n${currentVisualization}\n
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 8192,
+      max_tokens: 16384,
       system: SYSTEM_PROMPT,
       messages,
     });

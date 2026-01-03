@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import * as mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
 
 const anthropic = new Anthropic();
 
@@ -114,6 +115,22 @@ export async function extractFromDocx(docxBuffer: Buffer): Promise<ExtractionRes
   return await classifyAndStructure(result.value);
 }
 
+export async function extractFromExcel(excelBuffer: Buffer): Promise<ExtractionResult> {
+  const workbook = XLSX.read(excelBuffer, { type: 'buffer' });
+  const textParts: string[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    if (csv.trim()) {
+      textParts.push(`=== Sheet: ${sheetName} ===\n${csv}`);
+    }
+  }
+
+  const text = textParts.join('\n\n');
+  return await classifyAndStructure(text);
+}
+
 export async function extractFromText(text: string): Promise<ExtractionResult> {
   return await classifyAndStructure(text);
 }
@@ -183,6 +200,13 @@ export async function extractDocument(
     return extractFromDocx(fileBuffer);
   }
 
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      mimeType === 'application/vnd.ms-excel' ||
+      fileName.endsWith('.xlsx') ||
+      fileName.endsWith('.xls')) {
+    return extractFromExcel(fileBuffer);
+  }
+
   // Default: treat as text
   const text = fileBuffer.toString('utf-8');
   return extractFromText(text);
@@ -196,6 +220,8 @@ export function getMimeType(fileName: string): string {
     'pdf': 'application/pdf',
     'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'doc': 'application/msword',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'xls': 'application/vnd.ms-excel',
     'jpg': 'image/jpeg',
     'jpeg': 'image/jpeg',
     'png': 'image/png',
