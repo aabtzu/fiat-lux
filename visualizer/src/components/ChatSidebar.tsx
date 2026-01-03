@@ -108,7 +108,7 @@ export default function ChatSidebar({
         const initialMessages: Message[] = [
           {
             role: 'assistant',
-            content: 'I\'ve created an initial visualization based on your document. How would you like me to modify it?',
+            content: data.message || 'Created an initial visualization. How would you like me to modify it?',
           },
         ];
 
@@ -170,7 +170,7 @@ export default function ChatSidebar({
       const data = await response.json();
       const updatedMessages: Message[] = [
         ...newMessages,
-        { role: 'assistant', content: 'I\'ve updated the visualization. What else would you like to change?' },
+        { role: 'assistant', content: data.message || 'Updated the visualization.' },
       ];
 
       onVisualizationUpdate(data.visualization);

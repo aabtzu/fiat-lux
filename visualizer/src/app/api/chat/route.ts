@@ -13,8 +13,17 @@ const SYSTEM_PROMPT = `You are a visualization expert. Your job is to create bea
 
 When given document content and user instructions, you generate a complete HTML visualization.
 
+RESPONSE FORMAT:
+1. First, write a brief 1-2 sentence description of what you created or changed
+2. Then output the complete HTML on a new line after "---HTML---"
+
+Example response:
+Created a weekly calendar grid showing all 8 courses with color-coded time blocks.
+---HTML---
+<div>...</div>
+
 IMPORTANT RULES:
-1. Output ONLY the HTML content - no markdown, no code fences, no explanations
+1. Always include the brief description before ---HTML---
 2. Use inline styles or a <style> tag - no external CSS
 3. Use modern CSS (flexbox, grid, etc.) for layouts
 4. Make it visually appealing with good colors, spacing, and typography
@@ -67,13 +76,32 @@ Start with a reasonable default visualization based on the document type, then r
 const REFINEMENT_SYSTEM_PROMPT = `You are a visualization expert refining an existing HTML/CSS visualization.
 
 IMPORTANT RULES:
-1. Output ONLY the updated HTML content - no markdown, no code fences, no explanations
-2. Preserve the existing data and structure unless asked to change it
-3. Apply the requested changes while keeping everything else intact
-4. Use inline styles or a <style> tag - no external CSS
-5. Maintain any existing JavaScript functionality
+1. First, write a brief 1-sentence description of what you changed (this helps the user understand)
+2. Then output the complete updated HTML on a new line after "---HTML---"
+3. Preserve the existing data and structure unless asked to change it
+4. Apply the requested changes while keeping everything else intact
+5. Use inline styles or a <style> tag - no external CSS
+6. Maintain any existing JavaScript functionality
 
-You will receive the current visualization HTML and a modification request. Make the requested changes and return the complete updated HTML.`;
+Format your response as:
+Brief description of changes made.
+---HTML---
+<complete HTML here>`;
+
+// Keywords that indicate the user needs access to original document data
+const NEEDS_FULL_CONTEXT_PATTERNS = [
+  /re-?read/i,
+  /original\s+(data|document|file)/i,
+  /all\s+(the\s+)?(data|items|courses|entries)/i,
+  /missing\s+(data|items|courses|entries)/i,
+  /from\s+(the\s+)?(source|document|file)/i,
+  /don'?t\s+see/i,
+  /where\s+(is|are)/i,
+  /repopulate/i,
+  /reload/i,
+  /start\s+over/i,
+  /regenerate/i,
+];
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,7 +112,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if this is a refinement request (has existing visualization and history)
-    const isRefinement = currentVisualization && history && history.length > 0;
+    // But also check if the user is asking for original data (needs full context)
+    const needsFullContext = NEEDS_FULL_CONTEXT_PATTERNS.some(pattern => pattern.test(message));
+    const isRefinement = currentVisualization && history && history.length > 0 && !needsFullContext;
 
     // For refinements, we skip loading document content entirely
     if (isRefinement) {
@@ -107,13 +137,25 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unexpected response type' }, { status: 500 });
       }
 
-      let html = assistantContent.text;
+      // Parse response: message before ---HTML---, HTML after
+      const responseText = assistantContent.text;
+      const htmlMarker = '---HTML---';
+      const markerIndex = responseText.indexOf(htmlMarker);
+
+      let chatMessage = 'Updated the visualization.';
+      let html = responseText;
+
+      if (markerIndex !== -1) {
+        chatMessage = responseText.substring(0, markerIndex).trim();
+        html = responseText.substring(markerIndex + htmlMarker.length).trim();
+      }
+
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
       html = html.trim();
 
       return NextResponse.json({
         visualization: html,
-        message: 'Visualization updated',
+        message: chatMessage,
       });
     }
 
@@ -200,14 +242,25 @@ ${currentVisualization ? `Current visualization HTML:\n${currentVisualization}\n
       return NextResponse.json({ error: 'Unexpected response type' }, { status: 500 });
     }
 
-    // Clean up the response - remove any markdown code fences if present
-    let html = assistantContent.text;
+    // Parse response: message before ---HTML---, HTML after
+    const responseText = assistantContent.text;
+    const htmlMarker = '---HTML---';
+    const markerIndex = responseText.indexOf(htmlMarker);
+
+    let chatMessage = 'Created the visualization.';
+    let html = responseText;
+
+    if (markerIndex !== -1) {
+      chatMessage = responseText.substring(0, markerIndex).trim();
+      html = responseText.substring(markerIndex + htmlMarker.length).trim();
+    }
+
     html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
     html = html.trim();
 
     return NextResponse.json({
       visualization: html,
-      message: 'Visualization updated',
+      message: chatMessage,
     });
   } catch (error) {
     console.error('Chat error:', error);
