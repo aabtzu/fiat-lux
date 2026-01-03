@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { getFile, getFileContent, getSourceFileContent } from '@/lib/storage';
+import { getFile, getFileContent, getSourceFileContent, getStructuredContent } from '@/lib/storage';
 
 const anthropic = new Anthropic();
 
@@ -123,7 +123,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    const content = await getFileContent(file);
+    // Prefer structured data (compact JSON) over raw text
+    const structuredContent = getStructuredContent(file);
+    const content = structuredContent
+      ? `[Structured Data - JSON]\n${structuredContent}`
+      : await getFileContent(file);
 
     // Get source files content (files that are part of this document)
     let sourceFilesContext = '';
@@ -161,16 +165,33 @@ ${content}
 ${sourceFilesContext}${additionalContext}
 ${currentVisualization ? `Current visualization HTML:\n${currentVisualization}\n---\n` : ''}`;
 
-    // First message includes full context
+    // First message includes full context with caching
+    // Document context is cached, user request is not
     messages.push({
       role: 'user',
-      content: contextMessage + '\n\nUser request: ' + message,
+      content: [
+        {
+          type: 'text',
+          text: contextMessage,
+          cache_control: { type: 'ephemeral' },
+        },
+        {
+          type: 'text',
+          text: 'User request: ' + message,
+        },
+      ],
     });
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 16384,
-      system: SYSTEM_PROMPT,
+      system: [
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages,
     });
 

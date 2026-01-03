@@ -1,0 +1,15 @@
+Scenset travel, https://t.scenset.com/t/XveCMpok/story
+
+day | DOW | date | travel | city | hotel | activity | activity 2 | lunch | dinner
+1 | Tue | Jul 23 | fly JFK > VCE | | | | | | 
+2 | Wed | Jul 24 | water taxi to Venice | Venice | Sina Centurion Palace | gondola 600p | Vivaldi concert 830p | | Vini da Gigio 700p
+3 | Thu | Jul 25 | | Venice | Sina Centurion Palace | island hopping tour 900a | | | Osteria alla Frasca 730p
+4 | Fri | Jul 26 | pick up rental car | Dolomites | Forestis Dolomites | Verona | BASSANO | | Adler Brixen, Anders
+5 | Sat | Jul 27 | | Dolomites | Forestis Dolomites | Adolf Munkel Trail 1000a | | | 
+6 | Sun | Jul 28 | | Dolomites | Forestis Dolomites | via ferrata 1000a | | | 
+7 | Mon | Jul 29 | | Dolomites | Forestis Dolomites | Tyrol wine road cycling 1000a | Bolzano | | Bolzano restaurants
+8 | Tue | Jul 30 | | Dolomites | Forestis Dolomites | chill | spa reservations | | Forestis
+9 | Wed | Jul 31 | | Dolomites | Forestis Dolomites | chill | | | 
+10 | Thu | Aug 1 | drive | Ebrusco | L' Albereta | Brescia | Ebrusco walk | Artemis Persian Tapas Bar | Leone Felice Vista Lago 730p
+11 | Fri | Aug 2 | | Ebrusco | L' Albereta | Porsche experiences 900a | Bergamo | | 
+12 | Sat | Aug 3 | fly MXP > JFK | | | | | | 

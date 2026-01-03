@@ -19,7 +19,7 @@ export interface ExtractionResult {
   fileType: 'schedule' | 'invoice' | 'healthcare' | 'unknown';
 }
 
-const EXTRACTION_PROMPT = `You are analyzing a document to extract its content.
+const EXTRACTION_PROMPT = `You are analyzing a document to extract its content as structured data.
 
 First, identify what type of document this is:
 - "schedule" - class schedules, work schedules, calendars, timetables
@@ -27,24 +27,48 @@ First, identify what type of document this is:
 - "healthcare" - medical bills, EOBs, insurance claims, prescriptions
 - "unknown" - anything else
 
-Then extract ALL the text content from the document, preserving the structure as much as possible.
-
-For schedules, extract in this format:
-COURSE_CODE
-Course Title
-Location
-Days: Time
-
-For invoices, extract line items, amounts, dates, and totals.
-
-For healthcare documents, extract patient info, dates, procedures, and costs.
+Then extract the content into a structured format. This structured data will be used to generate visualizations, so capture ALL relevant information.
 
 Respond in this exact JSON format:
 {
   "fileType": "schedule" | "invoice" | "healthcare" | "unknown",
-  "extractedText": "the full extracted text content, structured appropriately",
-  "structured": { ... any structured data you can extract ... }
-}`;
+  "extractedText": "brief summary of the document for reference",
+  "structured": {
+    "title": "document title or description",
+    "metadata": { "date": "...", "source": "...", ... },
+    "items": [ ... array of main data items ... ],
+    "totals": { ... any summary totals ... }
+  }
+}
+
+STRUCTURED DATA FORMATS:
+
+For schedules:
+{
+  "items": [
+    {"code": "CS101", "name": "Intro to CS", "location": "Room 101", "days": ["Mon", "Wed"], "time": "10:00-11:30", "instructor": "..."}
+  ]
+}
+
+For invoices:
+{
+  "items": [
+    {"date": "2025-01-01", "description": "Service", "quantity": 1, "unitPrice": 100, "amount": 100}
+  ],
+  "totals": {"subtotal": 100, "tax": 8, "total": 108}
+}
+
+For healthcare:
+{
+  "patient": "...",
+  "provider": "...",
+  "items": [
+    {"date": "2025-01-01", "service": "Office Visit", "billed": 200, "allowed": 150, "paid": 120, "youOwe": 30}
+  ],
+  "totals": {"totalBilled": 200, "totalPaid": 120, "totalOwed": 30}
+}
+
+Include ALL items from the document. The structured data should be complete enough to recreate the visualization without needing the original text.`;
 
 export async function extractFromImage(
   imageData: Buffer,

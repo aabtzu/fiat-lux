@@ -1,0 +1,35 @@
+From
+Renee Wolk
+161 Elk Avenue
+New Rochelle, NY 10804-4214
+
+Statement for Insurance Reimbursement
+
+To: Amit Bhattacharyya
+Client: Chetna Bhattacharyya
+Responsible party: Amit Bhattacharyya
+aabtzu@gmail.com
+Insured: Chetna Bhattacharyya
+Member: #
+Statement #3773
+Issued: 12/04/2025
+
+Provider
+Renee Wolk, Ph.D.
+NPI: #1831595982
+(914) 632-0217
+reneewolkphd@gmail.com
+
+Practice
+SSN: 556-77-4596
+NPI: 1831595982
+
+Date        POS  Service    DX  Description                        Units  Fee    Paid
+11/03/2025  11   90834-95   -   Psychotherapy, 45 min Telehealth  1      $350   $350
+11/10/2025  11   90834-95   -   Psychotherapy, 45 min Telehealth  1      $350   $350
+11/17/2025  11   90834-95   -   Psychotherapy, 45 min Telehealth  1      $350   $350
+
+Total Fees: $1,050.00
+Total Paid: $1,050.00
+
+Make Payments to: Amit Bhattacharyya
