@@ -1,1 +1,5 @@
 .DS_Store
+
+# User data (not for version control)
+data/imports/
+data/storage.json
