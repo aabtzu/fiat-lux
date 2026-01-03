@@ -166,12 +166,6 @@ export async function getFileContent(file: ImportedFile): Promise<string> {
   return fs.readFile(filePath, 'utf-8');
 }
 
-// Get structured data as compact JSON string (for visualization requests)
-export function getStructuredContent(file: ImportedFile): string | null {
-  if (!file.structured) return null;
-  return JSON.stringify(file.structured);
-}
-
 export async function updateFileState(
   id: string,
   visualization: string,

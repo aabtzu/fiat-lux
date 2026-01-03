@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { getFile, getFileContent, getSourceFileContent, getStructuredContent } from '@/lib/storage';
+import { getFile, getFileContent, getSourceFileContent } from '@/lib/storage';
 
 const anthropic = new Anthropic();
 
@@ -165,11 +165,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    // Prefer structured data (compact JSON) over raw text
-    const structuredContent = getStructuredContent(file);
-    const content = structuredContent
-      ? `[Structured Data - JSON]\n${structuredContent}`
-      : await getFileContent(file);
+    const content = await getFileContent(file);
 
     // Get source files content (files that are part of this document)
     let sourceFilesContext = '';
