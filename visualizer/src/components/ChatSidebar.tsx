@@ -173,11 +173,15 @@ export default function ChatSidebar({
         { role: 'assistant', content: data.message || 'Updated the visualization.' },
       ];
 
-      onVisualizationUpdate(data.visualization);
+      // Only update visualization if one was returned (null means question-only response)
+      if (data.visualization) {
+        onVisualizationUpdate(data.visualization);
+        await saveState(data.visualization, updatedMessages);
+      } else {
+        // For question-only responses, save just the messages with current visualization
+        await saveState(currentVisualization, updatedMessages);
+      }
       setMessages(updatedMessages);
-
-      // Save the updated state
-      await saveState(data.visualization, updatedMessages);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         setMessages((prev) => [
@@ -227,9 +231,9 @@ export default function ChatSidebar({
     <div className="flex flex-col h-full bg-white border-l border-gray-200">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-        <h3 className="font-medium text-gray-800">Refine Visualization</h3>
+        <h3 className="font-medium text-gray-800">Chat</h3>
         <p className="text-xs text-gray-500 mt-0.5">
-          {isLoading ? 'Press ESC to cancel' : 'Describe how you want it to look'}
+          {isLoading ? 'Press ESC to cancel' : 'Ask questions or refine the visualization'}
         </p>
       </div>
 
@@ -281,7 +285,7 @@ export default function ChatSidebar({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="e.g., Make it more colorful, add a legend..."
+            placeholder="e.g., How many hours of classes? Make it more colorful..."
             className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             rows={2}
             disabled={isLoading}

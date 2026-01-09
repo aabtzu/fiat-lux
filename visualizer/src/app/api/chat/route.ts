@@ -9,18 +9,31 @@ interface ChatMessage {
   content: string;
 }
 
-const SYSTEM_PROMPT = `You are a visualization expert. Your job is to create beautiful, clear HTML/CSS visualizations of data.
+const SYSTEM_PROMPT = `You are a visualization expert. Your job is to create beautiful, clear HTML/CSS visualizations of data AND answer questions about the data.
 
-When given document content and user instructions, you generate a complete HTML visualization.
+When given document content and user instructions, you either:
+1. Generate/update an HTML visualization, OR
+2. Answer a question about the data without changing the visualization
 
 RESPONSE FORMAT:
-1. First, write a brief 1-2 sentence description of what you created or changed
-2. Then output the complete HTML on a new line after "---HTML---"
+- For visualization changes: Write a brief description, then output HTML after "---HTML---"
+- For questions/analysis (no viz change needed): Just write your answer, do NOT include "---HTML---"
 
-Example response:
+Example visualization response:
 Created a weekly calendar grid showing all 8 courses with color-coded time blocks.
 ---HTML---
 <div>...</div>
+
+Example question response:
+About 19 hours per week total, with 16 hours (83%) in architecture courses.
+
+ANSWER STYLE:
+- Be concise by default. Give the key answer first, then only essential details.
+- If the user asks for "more detail", "explain", or "break it down", give a thorough response.
+- If the user asks you to be "brief", "shorter", or "just the answer", be extremely concise.
+- Remember the user's preference for the rest of the conversation.
+
+Use your judgment: if the user is asking a question about the data (totals, counts, comparisons, summaries), answer it directly. If they want to see something differently or add/change the visualization, generate new HTML.
 
 IMPORTANT RULES:
 1. Always include the brief description before ---HTML---
@@ -73,20 +86,27 @@ HANDLING NEW DATA FILES:
 Start with a reasonable default visualization based on the document type, then refine based on user feedback.`;
 
 // Shorter system prompt for refinement requests (no document context needed)
-const REFINEMENT_SYSTEM_PROMPT = `You are a visualization expert refining an existing HTML/CSS visualization.
+const REFINEMENT_SYSTEM_PROMPT = `You are a visualization expert. You can refine visualizations OR answer questions about the displayed data.
 
-IMPORTANT RULES:
-1. First, write a brief 1-sentence description of what you changed (this helps the user understand)
+RESPONSE FORMAT:
+- For visualization changes: Write a brief description, then output HTML after "---HTML---"
+- For questions/analysis (no viz change needed): Just write your answer, do NOT include "---HTML---"
+
+RULES FOR VISUALIZATION CHANGES:
+1. First, write a brief 1-sentence description of what you changed
 2. Then output the complete updated HTML on a new line after "---HTML---"
 3. Preserve the existing data and structure unless asked to change it
 4. Apply the requested changes while keeping everything else intact
 5. Use inline styles or a <style> tag - no external CSS
 6. Maintain any existing JavaScript functionality
 
-Format your response as:
-Brief description of changes made.
----HTML---
-<complete HTML here>`;
+ANSWER STYLE:
+- Be concise by default. Give the key answer first, then only essential details.
+- If the user asks for "more detail", "explain", or "break it down", give a thorough response.
+- If the user asks you to be "brief", "shorter", or "just the answer", be extremely concise.
+- Remember the user's preference for the rest of the conversation.
+
+Use your judgment: if the user is asking a question (totals, counts, comparisons, "how many", "what is"), answer it directly from the data in the visualization. If they want to change how something looks, generate new HTML.`;
 
 // Keywords that indicate the user needs access to original document data
 const NEEDS_FULL_CONTEXT_PATTERNS = [
@@ -137,19 +157,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unexpected response type' }, { status: 500 });
       }
 
-      // Parse response: message before ---HTML---, HTML after
+      // Parse response: message before ---HTML---, HTML after (if present)
       const responseText = assistantContent.text;
       const htmlMarker = '---HTML---';
       const markerIndex = responseText.indexOf(htmlMarker);
 
-      let chatMessage = 'Updated the visualization.';
-      let html = responseText;
-
-      if (markerIndex !== -1) {
-        chatMessage = responseText.substring(0, markerIndex).trim();
-        html = responseText.substring(markerIndex + htmlMarker.length).trim();
+      // If no HTML marker, this is a question-only response
+      if (markerIndex === -1) {
+        return NextResponse.json({
+          visualization: null,
+          message: responseText.trim(),
+        });
       }
 
+      const chatMessage = responseText.substring(0, markerIndex).trim();
+      let html = responseText.substring(markerIndex + htmlMarker.length).trim();
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
       html = html.trim();
 
@@ -238,19 +260,21 @@ ${currentVisualization ? `Current visualization HTML:\n${currentVisualization}\n
       return NextResponse.json({ error: 'Unexpected response type' }, { status: 500 });
     }
 
-    // Parse response: message before ---HTML---, HTML after
+    // Parse response: message before ---HTML---, HTML after (if present)
     const responseText = assistantContent.text;
     const htmlMarker = '---HTML---';
     const markerIndex = responseText.indexOf(htmlMarker);
 
-    let chatMessage = 'Created the visualization.';
-    let html = responseText;
-
-    if (markerIndex !== -1) {
-      chatMessage = responseText.substring(0, markerIndex).trim();
-      html = responseText.substring(markerIndex + htmlMarker.length).trim();
+    // If no HTML marker, this is a question-only response
+    if (markerIndex === -1) {
+      return NextResponse.json({
+        visualization: null,
+        message: responseText.trim(),
+      });
     }
 
+    const chatMessage = responseText.substring(0, markerIndex).trim();
+    let html = responseText.substring(markerIndex + htmlMarker.length).trim();
     html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
     html = html.trim();
 
