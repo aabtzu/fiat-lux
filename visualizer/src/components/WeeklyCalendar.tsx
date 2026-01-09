@@ -86,27 +86,27 @@ export default function WeeklyCalendar({ courses, title }: WeeklyCalendarProps) 
                 ))}
 
                 {/* Course events */}
-                {getCoursesByDay(day).map((course, idx) => (
-                  <div
-                    key={`${course.code}-${idx}`}
-                    className={`absolute left-1 right-1 ${course.color} text-white rounded-md p-2 overflow-hidden shadow-md hover:shadow-lg transition-shadow cursor-pointer`}
-                    style={getEventStyle(course)}
-                  >
-                    <div className="font-semibold text-sm truncate">
-                      {course.code}
+                {getCoursesByDay(day).map((course, idx) => {
+                  const startMins = timeToMinutes(course.startTime);
+                  const endMins = timeToMinutes(course.endTime);
+                  const durationMins = endMins - startMins;
+                  const isShort = durationMins <= 60;
+
+                  return (
+                    <div
+                      key={`${course.code}-${idx}`}
+                      className={`absolute left-1 right-1 ${course.color} text-white rounded-md p-1.5 overflow-hidden shadow-md hover:shadow-lg transition-shadow cursor-pointer`}
+                      style={getEventStyle(course)}
+                    >
+                      <div className={`font-semibold leading-tight ${isShort ? 'text-xs' : 'text-sm'}`}>
+                        {course.code}
+                      </div>
+                      <div className={`opacity-90 leading-tight break-words ${isShort ? 'text-[10px]' : 'text-xs'}`}>
+                        {course.title}
+                      </div>
                     </div>
-                    <div className="text-xs opacity-90 truncate">
-                      {course.title}
-                    </div>
-                    <div className="text-xs opacity-75 truncate mt-1">
-                      {course.location}
-                    </div>
-                    <div className="text-xs opacity-75">
-                      {minutesToTime(timeToMinutes(course.startTime))} -{' '}
-                      {minutesToTime(timeToMinutes(course.endTime))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

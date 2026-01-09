@@ -23,12 +23,30 @@ export default function VisualizationViewer({ html, isLoading, fileName = 'visua
       const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!iframeDoc?.body) return;
 
+      // Inject CSS to prevent text truncation during export
+      const exportStyle = iframeDoc.createElement('style');
+      exportStyle.id = 'export-fix';
+      exportStyle.textContent = `
+        * {
+          overflow: visible !important;
+          text-overflow: clip !important;
+          white-space: normal !important;
+        }
+      `;
+      iframeDoc.head.appendChild(exportStyle);
+
+      // Wait for styles to apply
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const canvas = await html2canvas(iframeDoc.body, {
         backgroundColor: '#ffffff',
         scale: 2,
         useCORS: true,
         logging: false,
       });
+
+      // Remove the injected style
+      exportStyle.remove();
 
       if (format === 'jpg') {
         const link = document.createElement('a');
