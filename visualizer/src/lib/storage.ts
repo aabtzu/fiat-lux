@@ -28,6 +28,7 @@ export interface ImportedFile {
   visualization?: string;
   chatHistory?: ChatMessage[];
   sourceFiles?: SourceFile[];
+  initialPrompt?: string;
 }
 
 export interface StorageData {
@@ -314,4 +315,25 @@ export function getFileTypeIcon(type: FileType): string {
     unknown: 'file',
   };
   return icons[type];
+}
+
+export async function getTemplateVisualization(
+  fileType: FileType,
+  excludeId?: string
+): Promise<{ displayName: string; visualization: string } | null> {
+  const storage = await getStorage();
+
+  // Find a file of the same type that has a visualization
+  const templateFile = storage.files.find(
+    (f) => f.fileType === fileType && f.visualization && f.id !== excludeId
+  );
+
+  if (!templateFile || !templateFile.visualization) {
+    return null;
+  }
+
+  return {
+    displayName: templateFile.displayName,
+    visualization: templateFile.visualization,
+  };
 }

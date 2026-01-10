@@ -47,6 +47,7 @@ export default async function ViewPage({ params }: ViewPageProps) {
           fileId={id}
           fileName={file.displayName}
           initialSourceFiles={file.sourceFiles || []}
+          initialPrompt={file.initialPrompt}
         />
       </div>
     </div>

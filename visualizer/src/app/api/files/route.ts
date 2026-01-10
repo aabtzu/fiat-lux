@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
     const files = formData.getAll('file') as File[];
     const displayName = formData.get('displayName') as string | null;
     const documentId = formData.get('documentId') as string | null;
+    const initialPrompt = formData.get('initialPrompt') as string | null;
 
     if (files.length === 0) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 });
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
       importedAt: new Date().toISOString(),
       filePath: mainFileName,
       sourceFiles,
+      ...(initialPrompt && { initialPrompt }),
     };
 
     storage.files.unshift(importedFile);

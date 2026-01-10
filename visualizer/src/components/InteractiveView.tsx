@@ -16,9 +16,10 @@ interface InteractiveViewProps {
   fileId: string;
   fileName: string;
   initialSourceFiles?: SourceFile[];
+  initialPrompt?: string;
 }
 
-export default function InteractiveView({ fileId, fileName, initialSourceFiles = [] }: InteractiveViewProps) {
+export default function InteractiveView({ fileId, fileName, initialSourceFiles = [], initialPrompt }: InteractiveViewProps) {
   const [visualization, setVisualization] = useState<string>('');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -274,6 +275,7 @@ export default function InteractiveView({ fileId, fileName, initialSourceFiles =
             onCancel={cancelRequest}
             pendingMessage={pendingMessage}
             onPendingMessageHandled={() => setPendingMessage(null)}
+            initialPrompt={initialPrompt}
           />
         </div>
       </div>

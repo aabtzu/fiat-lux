@@ -10,6 +10,7 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [initialPrompt, setInitialPrompt] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -47,6 +48,9 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
       for (const file of files) {
         formData.append('file', file);
       }
+      if (initialPrompt.trim()) {
+        formData.append('initialPrompt', initialPrompt.trim());
+      }
 
       const response = await fetch('/api/files', {
         method: 'POST',
@@ -57,6 +61,7 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
         throw new Error('Upload failed');
       }
 
+      setInitialPrompt('');
       onUploadComplete();
     } catch (error) {
       console.error('Error uploading files:', error);
@@ -71,16 +76,14 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Import Files</h2>
-
+    <div className="bg-white rounded-lg shadow-md p-4">
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
         className={`
-          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+          border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors
           ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
           ${isUploading ? 'opacity-50 pointer-events-none' : ''}
         `}
@@ -95,9 +98,9 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
         />
 
         {isUploading ? (
-          <div className="text-gray-600">
+          <div className="text-gray-600 flex items-center justify-center gap-3">
             <svg
-              className="animate-spin h-8 w-8 mx-auto mb-2 text-blue-500"
+              className="animate-spin h-5 w-5 text-blue-500"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -116,13 +119,12 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
               />
             </svg>
-            <p>Processing {uploadProgress.total > 1 ? `file ${uploadProgress.current} of ${uploadProgress.total}` : 'document'}...</p>
-            <p className="text-sm text-gray-400 mt-1">Extracting content with AI</p>
+            <span>Processing {uploadProgress.total > 1 ? `file ${uploadProgress.current} of ${uploadProgress.total}` : 'document'}...</span>
           </div>
         ) : (
-          <>
+          <div className="flex items-center justify-center gap-3">
             <svg
-              className="w-10 h-10 mx-auto mb-3 text-gray-400"
+              className="w-6 h-6 text-gray-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -134,14 +136,25 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
                 d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
               />
             </svg>
-            <p className="text-gray-600 mb-1">
-              Drag and drop files here, or click to browse
-            </p>
-            <p className="text-sm text-gray-400">
-              PDF, Word, Excel, Images, Text, CSV, JSON
-            </p>
-          </>
+            <span className="text-gray-600">
+              Drop files or click to import
+            </span>
+            <span className="text-sm text-gray-400">
+              (PDF, Word, Excel, Images, Text)
+            </span>
+          </div>
         )}
+      </div>
+
+      <div className="mt-3">
+        <input
+          type="text"
+          value={initialPrompt}
+          onChange={(e) => setInitialPrompt(e.target.value)}
+          placeholder="Initial instructions (optional): e.g., Use same format as Anika's schedule..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          disabled={isUploading}
+        />
       </div>
     </div>
   );

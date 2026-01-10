@@ -17,6 +17,7 @@ interface ChatSidebarProps {
   onCancel: () => void;
   pendingMessage?: string | null;
   onPendingMessageHandled?: () => void;
+  initialPrompt?: string;
 }
 
 export default function ChatSidebar({
@@ -29,6 +30,7 @@ export default function ChatSidebar({
   onCancel,
   pendingMessage,
   onPendingMessageHandled,
+  initialPrompt,
 }: ChatSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -89,13 +91,18 @@ export default function ChatSidebar({
       // No saved state, generate initial visualization
       abortControllerRef.current = new AbortController();
 
+      // Use initialPrompt if provided, otherwise use default
+      const firstMessage = initialPrompt
+        ? initialPrompt
+        : 'Create an initial visualization for this document. Make it clear, informative, and visually appealing.';
+
       try {
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fileId,
-            message: 'Create an initial visualization for this document. Make it clear, informative, and visually appealing.',
+            message: firstMessage,
             history: [],
             currentVisualization: '',
           }),
@@ -105,12 +112,20 @@ export default function ChatSidebar({
         if (!response.ok) throw new Error('Failed to generate visualization');
 
         const data = await response.json();
-        const initialMessages: Message[] = [
-          {
-            role: 'assistant',
-            content: data.message || 'Created an initial visualization. How would you like me to modify it?',
-          },
-        ];
+        const initialMessages: Message[] = [];
+
+        // If there was an initial prompt, show it as a user message
+        if (initialPrompt) {
+          initialMessages.push({
+            role: 'user',
+            content: initialPrompt,
+          });
+        }
+
+        initialMessages.push({
+          role: 'assistant',
+          content: data.message || 'Created an initial visualization. How would you like me to modify it?',
+        });
 
         onVisualizationUpdate(data.visualization);
         setMessages(initialMessages);
@@ -141,7 +156,7 @@ export default function ChatSidebar({
     };
 
     loadOrGenerate();
-  }, [hasInitialized, fileId, onVisualizationUpdate, saveState, setIsLoading, abortControllerRef]);
+  }, [hasInitialized, fileId, onVisualizationUpdate, saveState, setIsLoading, abortControllerRef, initialPrompt]);
 
   const sendMessageWithContent = async (userMessage: string) => {
     if (!userMessage.trim() || isLoading) return;

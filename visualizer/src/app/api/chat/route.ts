@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { getFile, getFileContent, getSourceFileContent } from '@/lib/storage';
+import { getFile, getFileContent, getSourceFileContent, getTemplateVisualization } from '@/lib/storage';
 
 const anthropic = new Anthropic();
 
@@ -83,7 +83,12 @@ HANDLING NEW DATA FILES:
 - If DIFFERENT: briefly describe what the new data contains, suggest how it could be incorporated (new section, separate table, combined view), and ask the user what they'd prefer
 - Always mention what was added: "I've added X new records from [filename]" or "The new file contains [description] - how would you like me to incorporate it?"
 
-Start with a reasonable default visualization based on the document type, then refine based on user feedback.`;
+TEMPLATES:
+- If a TEMPLATE TO FOLLOW is provided, match its exact layout, styling, colors, structure, and format
+- Apply the template's design to the new data - do not invent a new style
+- If no template is provided, create a reasonable default visualization
+
+Start with a reasonable default visualization based on the document type (or template if provided), then refine based on user feedback.`;
 
 // Shorter system prompt for refinement requests (no document context needed)
 const REFINEMENT_SYSTEM_PROMPT = `You are a visualization expert. You can refine visualizations OR answer questions about the displayed data.
@@ -210,6 +215,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Get template visualization from similar file type (for new visualizations)
+    let templateContext = '';
+    if (!currentVisualization) {
+      const template = await getTemplateVisualization(file.fileType, fileId);
+      if (template) {
+        templateContext = `
+---
+TEMPLATE TO FOLLOW (from "${template.displayName}"):
+Use this existing visualization as a template. Match the same layout, styling, colors, and structure.
+Apply the same format to the new data.
+---
+${template.visualization}
+---
+`;
+      }
+    }
+
     // Build the messages array
     const messages: Anthropic.MessageParam[] = [];
 
@@ -222,7 +244,7 @@ Type: ${file.fileType}
 ---
 ${content}
 ---
-${sourceFilesContext}${additionalContext}
+${sourceFilesContext}${additionalContext}${templateContext}
 ${currentVisualization ? `Current visualization HTML:\n${currentVisualization}\n---\n` : ''}`;
 
     // First message includes full context with caching
