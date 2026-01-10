@@ -126,6 +126,13 @@ const NEEDS_FULL_CONTEXT_PATTERNS = [
   /reload/i,
   /start\s+over/i,
   /regenerate/i,
+  /data\s*source/i,
+  /source\s*(file|data)/i,
+  /check\s+(the\s+)?(data|file)/i,
+  /verify\s+(the\s+)?(data|file)/i,
+  /uploaded?\s*(file|document)/i,
+  /the\s+file/i,
+  /raw\s+data/i,
 ];
 
 export async function POST(request: NextRequest) {
