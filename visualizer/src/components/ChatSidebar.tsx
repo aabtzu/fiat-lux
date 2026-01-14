@@ -9,6 +9,7 @@ interface Message {
 
 interface ChatSidebarProps {
   fileId: string;
+  fileName: string;
   onVisualizationUpdate: (html: string) => void;
   currentVisualization: string;
   isLoading: boolean;
@@ -22,6 +23,7 @@ interface ChatSidebarProps {
 
 export default function ChatSidebar({
   fileId,
+  fileName,
   onVisualizationUpdate,
   currentVisualization,
   isLoading,
@@ -37,6 +39,16 @@ export default function ChatSidebar({
   const [hasInitialized, setHasInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Helper to trigger CSV download
+  const downloadCsv = (csvData: string, exportName?: string) => {
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${exportName || fileName || 'export'}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -187,6 +199,14 @@ export default function ChatSidebar({
         ...newMessages,
         { role: 'assistant', content: data.message || 'Updated the visualization.' },
       ];
+
+      // Handle CSV export response
+      if (data.csvData) {
+        downloadCsv(data.csvData);
+        await saveState(currentVisualization, updatedMessages);
+        setMessages(updatedMessages);
+        return;
+      }
 
       // Only update visualization if one was returned (null means question-only response)
       if (data.visualization) {

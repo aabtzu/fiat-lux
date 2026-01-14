@@ -27,9 +27,8 @@ export default function AboutPage() {
               <h2 className="text-xl font-semibold text-gray-800 mb-3">The Motto</h2>
               <p className="text-gray-600 leading-relaxed">
                 <span className="font-medium text-amber-600">Fiat Lux</span> is the motto of the
-                University of California, Berkeley. These Latin words from Genesis 1:3 translate
-                to &ldquo;Let there be light&rdquo; — a call to illuminate, to understand, and to
-                bring clarity where there was once darkness.
+                University of California, Berkeley. The Latin phrase translates to &ldquo;Let there
+                be light&rdquo; — a call to illuminate and bring clarity.
               </p>
             </section>
 

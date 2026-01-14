@@ -267,6 +267,7 @@ export default function InteractiveView({ fileId, fileName, initialSourceFiles =
         <div className="h-full rounded-lg overflow-hidden shadow-lg">
           <ChatSidebar
             fileId={fileId}
+            fileName={fileName}
             onVisualizationUpdate={setVisualization}
             currentVisualization={visualization}
             isLoading={isLoading}

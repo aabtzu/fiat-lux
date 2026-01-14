@@ -4,6 +4,13 @@ import { useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
+interface TableInfo {
+  id: string;
+  name: string;
+  description: string;
+  rowCount: number;
+}
+
 interface VisualizationViewerProps {
   html: string;
   isLoading?: boolean;
@@ -13,6 +20,86 @@ interface VisualizationViewerProps {
 export default function VisualizationViewer({ html, isLoading, fileName = 'visualization' }: VisualizationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [availableTables, setAvailableTables] = useState<TableInfo[]>([]);
+  const [isLoadingTables, setIsLoadingTables] = useState(false);
+
+  const downloadCsv = (csvData: string, exportName: string) => {
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${exportName}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const handleCsvClick = async () => {
+    if (!html) {
+      alert('No visualization to export');
+      return;
+    }
+
+    setIsLoadingTables(true);
+    setShowCsvModal(true);
+    setAvailableTables([]);
+
+    try {
+      const response = await fetch('/api/export-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html, action: 'identify' }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API error:', response.status, errorData);
+        setAvailableTables([]);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.parseError) {
+        console.error('Parse error from API:', data.parseError);
+      }
+      setAvailableTables(data.tables || []);
+    } catch (error) {
+      console.error('Failed to identify tables:', error);
+      setAvailableTables([]);
+    } finally {
+      setIsLoadingTables(false);
+    }
+  };
+
+  const handleTableSelect = async (table: TableInfo) => {
+    setIsExporting(true);
+
+    try {
+      const response = await fetch('/api/export-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          html,
+          action: 'extract',
+          tableId: table.id,
+          tableName: table.name,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.csvData) {
+          const exportName = `${fileName}-${table.id}`.replace(/\s+/g, '-').toLowerCase();
+          downloadCsv(data.csvData, exportName);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to export table:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setIsExporting(false);
+      setShowCsvModal(false);
+    }
+  };
 
   const exportToImage = async (format: 'jpg' | 'pdf') => {
     if (!iframeRef.current) return;
@@ -149,7 +236,67 @@ ${html}
           </svg>
           PDF
         </button>
+        <button
+          onClick={handleCsvClick}
+          disabled={isExporting || isLoadingTables}
+          className="px-3 py-1.5 text-sm font-semibold text-gray-700 bg-gray-100 border border-gray-400 rounded-md shadow-sm hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+          title="Export data as CSV"
+        >
+          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          CSV
+        </button>
       </div>
+
+      {/* CSV Export Modal */}
+      {showCsvModal && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">Export to CSV</h3>
+              <button
+                onClick={() => setShowCsvModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4">
+              {isLoadingTables ? (
+                <div className="flex items-center justify-center py-8">
+                  <svg className="animate-spin h-6 w-6 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-gray-600">Analyzing visualization...</span>
+                </div>
+              ) : availableTables.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No exportable tables found in this visualization.</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600 mb-3">Select the data to export:</p>
+                  {availableTables.map((table) => (
+                    <button
+                      key={table.id}
+                      onClick={() => handleTableSelect(table)}
+                      disabled={isExporting}
+                      className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                    >
+                      <div className="font-medium text-gray-800">{table.name}</div>
+                      <div className="text-sm text-gray-500">{table.description}</div>
+                      <div className="text-xs text-gray-400 mt-1">~{table.rowCount} rows</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <iframe
         ref={iframeRef}
         srcDoc={fullHtml}

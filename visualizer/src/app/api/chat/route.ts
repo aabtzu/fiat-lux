@@ -135,12 +135,78 @@ const NEEDS_FULL_CONTEXT_PATTERNS = [
   /raw\s+data/i,
 ];
 
+// Keywords that indicate user wants to export data as CSV
+const CSV_EXPORT_PATTERNS = [
+  /export.*csv/i,
+  /csv.*export/i,
+  /download.*csv/i,
+  /save.*csv/i,
+  /export.*table/i,
+  /export.*data/i,
+  /get.*csv/i,
+  /as\s+csv/i,
+  /to\s+csv/i,
+  /csv\s+file/i,
+];
+
+const CSV_EXPORT_SYSTEM_PROMPT = `You are a data extraction expert. Given an HTML visualization, extract the specified table or data as CSV format.
+
+RULES:
+1. Output ONLY the CSV data, nothing else - no explanation, no markdown, no code blocks
+2. First row should be column headers
+3. Use comma as delimiter
+4. CRITICAL: Every row MUST have the same number of columns as the header row
+5. If a cell is empty/missing, output an empty value (two commas with nothing between: ,,)
+6. NEVER skip columns - if a row has no value for a column, leave it empty but maintain column position
+7. For monetary values like "$23,759" - remove the comma from the number (output as $23759 or 23759)
+8. For any other values containing commas that can't be simplified, wrap in double quotes
+9. Escape double quotes by doubling them
+10. If the user specifies which table/data to export, extract only that
+11. If multiple tables exist and user doesn't specify, extract the main data table (usually the largest one with itemized data, not summary tables)
+12. For invoice/order data, prefer the line items table over summary charts
+13. Keep numbers as clean values for easy spreadsheet use (no thousand separators)
+
+Example with missing values:
+Item,Price,Discount,Final
+Widget A,100.00,10.00,90.00
+Widget B,,,50.00
+Widget C,200.00,,200.00`;
+
 export async function POST(request: NextRequest) {
   try {
     const { fileId, message, history, currentVisualization, additionalFileIds } = await request.json();
 
     if (!fileId || !message) {
       return NextResponse.json({ error: 'Missing fileId or message' }, { status: 400 });
+    }
+
+    // Check if this is a CSV export request
+    const isCsvExport = CSV_EXPORT_PATTERNS.some(pattern => pattern.test(message));
+    if (isCsvExport && currentVisualization) {
+      const csvResponse = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8192,
+        system: CSV_EXPORT_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: `User request: ${message}\n\nVisualization HTML:\n${currentVisualization}`,
+          },
+        ],
+      });
+
+      const csvContent = csvResponse.content[0];
+      if (csvContent.type === 'text') {
+        // Clean up CSV output (remove any accidental markdown)
+        let csvData = csvContent.text.trim();
+        csvData = csvData.replace(/^```csv?\n?/i, '').replace(/\n?```$/i, '');
+
+        return NextResponse.json({
+          visualization: null,
+          message: 'Here\'s your CSV export. The download should start automatically.',
+          csvData: csvData,
+        });
+      }
     }
 
     // Check if this is a refinement request (has existing visualization and history)
