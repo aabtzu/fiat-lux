@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anika's Spring 2026 Schedule</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 30px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 25px;
+            font-size: 2rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(5, 1fr);
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: #2d3748;
+            color: white;
+            padding: 15px 10px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .time-column {
+            background: #f7fafc;
+            border-right: 2px solid #e2e8f0;
+        }
+        .time-slot {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            font-size: 0.75rem;
+            color: #718096;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .time-slot.hour {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        .day-column {
+            position: relative;
+            background: #f7fafc;
+            border-right: 1px solid #e2e8f0;
+        }
+        .day-column:last-child {
+            border-right: none;
+        }
+        .grid-line {
+            height: 30px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .grid-line.hour {
+            border-bottom: 1px solid #cbd5e0;
+        }
+        .class-block {
+            position: absolute;
+            left: 4px;
+            right: 4px;
+            border-radius: 8px;
+            padding: 6px 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .class-block:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            z-index: 10;
+        }
+        .class-code {
+            font-weight: 700;
+            font-size: 0.8rem;
+            margin-bottom: 2px;
+        }
+        .class-name {
+            font-size: 0.65rem;
+            opacity: 0.9;
+            line-height: 1.2;
+        }
+        .class-time {
+            font-size: 0.6rem;
+            opacity: 0.8;
+            margin-top: auto;
+        }
+        .class-location {
+            font-size: 0.55rem;
+            opacity: 0.7;
+        }
+        /* Color schemes for different classes */
+        .asns-1150 {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .arch-1310 {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        .arch-1311 {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+        }
+        .arch-2240 {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+        .arch-1000 {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            color: #2d3748;
+        }
+        .arch-2130 {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        .legend-text {
+            font-size: 0.8rem;
+            color: #4a5568;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Anika's Spring 2026 Class Schedule</h1>
+        <div class="schedule-grid">
+            <!-- Headers -->
+            <div class="header">Time</div>
+            <div class="header">Monday</div>
+            <div class="header">Tuesday</div>
+            <div class="header">Wednesday</div>
+            <div class="header">Thursday</div>
+            <div class="header">Friday</div>
+
+            <!-- Time Column -->
+            <div class="time-column">
+                <div class="time-slot hour">9:00</div>
+                <div class="time-slot">9:30</div>
+                <div class="time-slot hour">10:00</div>
+                <div class="time-slot">10:30</div>
+                <div class="time-slot hour">11:00</div>
+                <div class="time-slot">11:30</div>
+                <div class="time-slot hour">12:00</div>
+                <div class="time-slot">12:30</div>
+                <div class="time-slot hour">1:00</div>
+                <div class="time-slot">1:30</div>
+                <div class="time-slot hour">2:00</div>
+                <div class="time-slot">2:30</div>
+                <div class="time-slot hour">3:00</div>
+                <div class="time-slot">3:30</div>
+                <div class="time-slot hour">4:00</div>
+                <div class="time-slot">4:30</div>
+            </div>
+
+            <!-- Monday -->
+            <div class="day-column">
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+
+                <!-- ARCH 1000: 10:30am - 11:35am = 90px from top, 65px height -->
+                <div class="class-block arch-1000" style="top: 90px; height: 65px;">
+                    <span class="class-code">ARCH 1000</span>
+                    <span class="class-name">Architecture at Northeastern</span>
+                    <span class="class-time">10:30a - 11:35a</span>
+                </div>
+
+                <!-- ARCH 2240: 11:45am - 1:25pm = 165px from top, 100px height -->
+                <div class="class-block arch-2240" style="top: 165px; height: 100px;">
+                    <span class="class-code">ARCH 2240</span>
+                    <span class="class-name">Architectonic Systems</span>
+                    <span class="class-time">11:45a - 1:25p</span>
+                </div>
+
+                <!-- ASNS 1150: 1:35pm - 2:40pm = 275px from top, 65px height -->
+                <div class="class-block asns-1150" style="top: 275px; height: 65px;">
+                    <span class="class-code">ASNS 1150</span>
+                    <span class="class-name">East Asian Studies</span>
+                    <span class="class-time">1:35p - 2:40p</span>
+                </div>
+            </div>
+
+            <!-- Tuesday -->
+            <div class="day-column">
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+
+                <!-- ARCH 1310: 9:50am - 11:30am = 50px from top, 100px height -->
+                <div class="class-block arch-1310" style="top: 50px; height: 100px;">
+                    <span class="class-code">ARCH 1310</span>
+                    <span class="class-name">Buildings and Cities, A Global History</span>
+                    <span class="class-time">9:50a - 11:30a</span>
+                </div>
+
+                <!-- ARCH 1311: 11:45am - 12:50pm = 165px from top, 65px height -->
+                <div class="class-block arch-1311" style="top: 165px; height: 65px;">
+                    <span class="class-code">ARCH 1311</span>
+                    <span class="class-name">Recitation for ARCH 1310</span>
+                    <span class="class-time">11:45a - 12:50p</span>
+                </div>
+
+                <!-- ARCH 2130: 1:35pm - 5:05pm = 275px from top, 210px height -->
+                <div class="class-block arch-2130" style="top: 275px; height: 210px;">
+                    <span class="class-code">ARCH 2130</span>
+                    <span class="class-name">Site, Space, Program</span>
+                    <span class="class-time">1:35p - 5:05p</span>
+                    <span class="class-location">Architecture Studio 100</span>
+                </div>
+            </div>
+
+            <!-- Wednesday -->
+            <div class="day-column">
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+
+                <!-- ASNS 1150: 1:35pm - 2:40pm = 275px from top, 65px height -->
+                <div class="class-block asns-1150" style="top: 275px; height: 65px;">
+                    <span class="class-code">ASNS 1150</span>
+                    <span class="class-name">East Asian Studies</span>
+                    <span class="class-time">1:35p - 2:40p</span>
+                </div>
+            </div>
+
+            <!-- Thursday -->
+            <div class="day-column">
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+
+                <!-- ARCH 2240: 11:45am - 1:25pm = 165px from top, 100px height -->
+                <div class="class-block arch-2240" style="top: 165px; height: 100px;">
+                    <span class="class-code">ARCH 2240</span>
+                    <span class="class-name">Architectonic Systems</span>
+                    <span class="class-time">11:45a - 1:25p</span>
+                </div>
+
+                <!-- ASNS 1150: 1:35pm - 2:40pm = 275px from top, 65px height -->
+                <div class="class-block asns-1150" style="top: 275px; height: 65px;">
+                    <span class="class-code">ASNS 1150</span>
+                    <span class="class-name">East Asian Studies</span>
+                    <span class="class-time">1:35p - 2:40p</span>
+                </div>
+            </div>
+
+            <!-- Friday -->
+            <div class="day-column">
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+                <div class="grid-line hour"></div>
+                <div class="grid-line"></div>
+
+                <!-- ARCH 1310: 9:50am - 11:30am = 50px from top, 100px height -->
+                <div class="class-block arch-1310" style="top: 50px; height: 100px;">
+                    <span class="class-code">ARCH 1310</span>
+                    <span class="class-name">Buildings and Cities, A Global History</span>
+                    <span class="class-time">9:50a - 11:30a</span>
+                </div>
+
+                <!-- ARCH 2130: 1:35pm - 5:05pm = 275px from top, 210px height -->
+                <div class="class-block arch-2130" style="top: 275px; height: 210px;">
+                    <span class="class-code">ARCH 2130</span>
+                    <span class="class-name">Site, Space, Program</span>
+                    <span class="class-time">1:35p - 5:05p</span>
+                    <span class="class-location">Architecture Studio 100</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
+                <span class="legend-text">ASNS 1150 - East Asian Studies</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
+                <span class="legend-text">ARCH 1310 - Buildings and Cities</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"></div>
+                <span class="legend-text">ARCH 1311 - Recitation</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
+                <span class="legend-text">ARCH 2240 - Architectonic Systems</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);"></div>
+                <span class="legend-text">ARCH 1000 - Architecture at NEU</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+                <span class="legend-text">ARCH 2130 - Site, Space, Program</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
