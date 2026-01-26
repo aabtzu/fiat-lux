@@ -35,17 +35,25 @@ export interface StorageData {
   files: ImportedFile[];
 }
 
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), '..', 'data');
-const IMPORTS_DIR = path.join(DATA_DIR, 'imports');
-const STORAGE_FILE = path.join(DATA_DIR, 'storage.json');
+function getDataDir(): string {
+  return process.env.DATA_DIR || path.join(process.cwd(), '..', 'data');
+}
+
+function getImportsDir(): string {
+  return path.join(getDataDir(), 'imports');
+}
+
+function getStorageFile(): string {
+  return path.join(getDataDir(), 'storage.json');
+}
 
 export async function ensureDirectories(): Promise<void> {
-  await fs.mkdir(IMPORTS_DIR, { recursive: true });
+  await fs.mkdir(getImportsDir(), { recursive: true });
 }
 
 export async function getStorage(): Promise<StorageData> {
   try {
-    const data = await fs.readFile(STORAGE_FILE, 'utf-8');
+    const data = await fs.readFile(getStorageFile(), 'utf-8');
     return JSON.parse(data);
   } catch {
     return { files: [] };
@@ -53,7 +61,7 @@ export async function getStorage(): Promise<StorageData> {
 }
 
 export async function saveStorage(data: StorageData): Promise<void> {
-  await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
+  await fs.writeFile(getStorageFile(), JSON.stringify(data, null, 2));
 }
 
 export function generateId(): string {
@@ -103,7 +111,7 @@ export async function addFile(
   const id = generateId();
   const fileType = detectFileType(content, originalName);
   const fileName = `${id}.txt`;
-  const filePath = path.join(IMPORTS_DIR, fileName);
+  const filePath = path.join(getImportsDir(), fileName);
 
   await fs.writeFile(filePath, content);
 
@@ -135,7 +143,7 @@ export async function addExtractedFile(
 
   const id = generateId();
   const fileName = `${id}.txt`;
-  const filePath = path.join(IMPORTS_DIR, fileName);
+  const filePath = path.join(getImportsDir(), fileName);
 
   await fs.writeFile(filePath, extractedText);
 
@@ -163,7 +171,7 @@ export async function getFile(id: string): Promise<ImportedFile | null> {
 }
 
 export async function getFileContent(file: ImportedFile): Promise<string> {
-  const filePath = path.join(IMPORTS_DIR, file.filePath);
+  const filePath = path.join(getImportsDir(), file.filePath);
   return fs.readFile(filePath, 'utf-8');
 }
 
@@ -206,7 +214,7 @@ export async function deleteFile(id: string): Promise<boolean> {
   if (fileIndex === -1) return false;
 
   const file = storage.files[fileIndex];
-  const filePath = path.join(IMPORTS_DIR, file.filePath);
+  const filePath = path.join(getImportsDir(), file.filePath);
 
   try {
     await fs.unlink(filePath);
@@ -218,7 +226,7 @@ export async function deleteFile(id: string): Promise<boolean> {
   if (file.sourceFiles) {
     for (const sf of file.sourceFiles) {
       try {
-        await fs.unlink(path.join(IMPORTS_DIR, sf.filePath));
+        await fs.unlink(path.join(getImportsDir(), sf.filePath));
       } catch {
         // File might already be deleted
       }
@@ -246,7 +254,7 @@ export async function addSourceFile(
 
   const sourceId = generateId();
   const fileName = `${sourceId}.txt`;
-  const filePath = path.join(IMPORTS_DIR, fileName);
+  const filePath = path.join(getImportsDir(), fileName);
 
   await fs.writeFile(filePath, extractedText);
 
@@ -268,7 +276,7 @@ export async function addSourceFile(
 }
 
 export async function getSourceFileContent(sourceFile: SourceFile): Promise<string> {
-  const filePath = path.join(IMPORTS_DIR, sourceFile.filePath);
+  const filePath = path.join(getImportsDir(), sourceFile.filePath);
   return fs.readFile(filePath, 'utf-8');
 }
 
@@ -286,7 +294,7 @@ export async function removeSourceFile(documentId: string, sourceFileId: string)
 
   const sf = file.sourceFiles[sfIndex];
   try {
-    await fs.unlink(path.join(IMPORTS_DIR, sf.filePath));
+    await fs.unlink(path.join(getImportsDir(), sf.filePath));
   } catch {
     // File might already be deleted
   }
