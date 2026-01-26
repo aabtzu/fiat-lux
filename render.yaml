@@ -6,8 +6,14 @@ services:
     rootDir: visualizer
     buildCommand: npm install && npm run build
     startCommand: npm run start
+    disk:
+      name: data
+      mountPath: /opt/render/project/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATA_DIR
+        value: /opt/render/project/data
       - key: ANTHROPIC_API_KEY
         sync: false

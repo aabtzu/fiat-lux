@@ -35,7 +35,7 @@ export interface StorageData {
   files: ImportedFile[];
 }
 
-const DATA_DIR = path.join(process.cwd(), '..', 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), '..', 'data');
 const IMPORTS_DIR = path.join(DATA_DIR, 'imports');
 const STORAGE_FILE = path.join(DATA_DIR, 'storage.json');
 
