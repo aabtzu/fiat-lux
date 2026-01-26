@@ -4,8 +4,13 @@ import { extractDocument, getMimeType } from '@/lib/documentExtractor';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-const DATA_DIR = path.join(process.cwd(), '..', 'data');
-const IMPORTS_DIR = path.join(DATA_DIR, 'imports');
+function getDataDir(): string {
+  return process.env.DATA_DIR || path.join(process.cwd(), '..', 'data');
+}
+
+function getImportsDir(): string {
+  return path.join(getDataDir(), 'imports');
+}
 
 export async function GET() {
   const storage = await getStorage();
@@ -80,7 +85,7 @@ export async function POST(request: NextRequest) {
     // Create the main document
     const mainId = generateId();
     const mainFileName = `${mainId}.txt`;
-    const mainFilePath = path.join(IMPORTS_DIR, mainFileName);
+    const mainFilePath = path.join(getImportsDir(), mainFileName);
     await fs.writeFile(mainFilePath, combinedText);
 
     // Create source file entries for each uploaded file
@@ -88,7 +93,7 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < extractions.length; i++) {
       const sourceId = generateId();
       const sourceFileName = `${sourceId}.txt`;
-      const sourceFilePath = path.join(IMPORTS_DIR, sourceFileName);
+      const sourceFilePath = path.join(getImportsDir(), sourceFileName);
       await fs.writeFile(sourceFilePath, extractions[i].text);
 
       sourceFiles.push({
