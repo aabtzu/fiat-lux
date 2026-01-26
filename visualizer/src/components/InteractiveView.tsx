@@ -224,7 +224,7 @@ export default function InteractiveView({ fileId, fileName, initialSourceFiles =
         </div>
       </div>
 
-      {/* Chat toggle button (when closed) */}
+      {/* Chat toggle button (when closed) - visible on all screens */}
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}
@@ -249,22 +249,34 @@ export default function InteractiveView({ fileId, fileName, initialSourceFiles =
         </button>
       )}
 
-      {/* Chat sidebar - always mounted, visibility toggled */}
+      {/* Mobile overlay backdrop */}
+      {isChatOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={() => setIsChatOpen(false)}
+        />
+      )}
+
+      {/* Chat sidebar - slide-in drawer on mobile, inline on desktop */}
       <div
-        className={`flex-shrink-0 min-h-0 relative transition-all duration-300 overflow-hidden ${
-          isChatOpen ? 'w-80 opacity-100' : 'w-0 opacity-0'
-        }`}
+        className={`
+          fixed md:relative inset-y-0 right-0 z-50 md:z-auto
+          flex-shrink-0 min-h-0
+          transition-transform duration-300 ease-in-out md:transition-all
+          ${isChatOpen ? 'translate-x-0 md:w-80 md:opacity-100' : 'translate-x-full md:translate-x-0 md:w-0 md:opacity-0'}
+          w-[85vw] max-w-sm md:max-w-none
+        `}
       >
         <button
           onClick={() => setIsChatOpen(false)}
-          className="absolute -left-3 top-4 p-1 bg-white border border-gray-200 rounded-full shadow-sm hover:bg-gray-50 z-10"
+          className="absolute -left-3 top-4 p-1 bg-white border border-gray-200 rounded-full shadow-sm hover:bg-gray-50 z-10 hidden md:block"
           title="Close chat"
         >
           <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
-        <div className="h-full rounded-lg overflow-hidden shadow-lg">
+        <div className="h-full rounded-lg md:rounded-lg overflow-hidden shadow-lg">
           <ChatSidebar
             fileId={fileId}
             fileName={fileName}
@@ -277,6 +289,7 @@ export default function InteractiveView({ fileId, fileName, initialSourceFiles =
             pendingMessage={pendingMessage}
             onPendingMessageHandled={() => setPendingMessage(null)}
             initialPrompt={initialPrompt}
+            onClose={() => setIsChatOpen(false)}
           />
         </div>
       </div>

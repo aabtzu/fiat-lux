@@ -19,6 +19,7 @@ interface ChatSidebarProps {
   pendingMessage?: string | null;
   onPendingMessageHandled?: () => void;
   initialPrompt?: string;
+  onClose?: () => void;
 }
 
 export default function ChatSidebar({
@@ -33,6 +34,7 @@ export default function ChatSidebar({
   pendingMessage,
   onPendingMessageHandled,
   initialPrompt,
+  onClose,
 }: ChatSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -265,11 +267,24 @@ export default function ChatSidebar({
   return (
     <div className="flex flex-col h-full bg-white border-l border-gray-200">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-        <h3 className="font-medium text-gray-800">Chat</h3>
-        <p className="text-xs text-gray-500 mt-0.5">
-          {isLoading ? 'Press ESC to cancel' : 'Ask questions or refine the visualization'}
-        </p>
+      <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
+        <div>
+          <h3 className="font-medium text-gray-800">Chat</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {isLoading ? 'Press ESC to cancel' : 'Ask questions or refine the visualization'}
+          </p>
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden p-1 text-gray-400 hover:text-gray-600"
+            title="Close chat"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Messages */}
