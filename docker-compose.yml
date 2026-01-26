@@ -1,0 +1,15 @@
+services:
+  fiat-lux:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATA_DIR=/opt/render/project/data
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      # Persist data directory (simulates Render's disk)
+      - fiat-lux-data:/opt/render/project/data
+
+volumes:
+  fiat-lux-data:

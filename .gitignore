@@ -3,3 +3,8 @@
 # User data (not for version control)
 data/imports/
 data/storage.json
+
+# Environment files (may contain secrets)
+.env
+.env.local
+.env.*.local
