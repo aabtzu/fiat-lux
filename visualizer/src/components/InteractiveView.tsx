@@ -21,7 +21,13 @@ interface InteractiveViewProps {
 
 export default function InteractiveView({ fileId, fileName, initialSourceFiles = [], initialPrompt }: InteractiveViewProps) {
   const [visualization, setVisualization] = useState<string>('');
-  const [isChatOpen, setIsChatOpen] = useState(true);
+  // Start with chat closed on mobile, open on desktop
+  const [isChatOpen, setIsChatOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768;
+    }
+    return true; // Default to open for SSR
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [sourceFiles, setSourceFiles] = useState<SourceFile[]>(initialSourceFiles);
