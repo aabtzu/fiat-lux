@@ -58,14 +58,17 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Upload failed');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Upload error response:', response.status, errorData);
+        throw new Error(errorData.error || errorData.details || 'Upload failed');
       }
 
       setInitialPrompt('');
       onUploadComplete();
     } catch (error) {
       console.error('Error uploading files:', error);
-      alert('Failed to upload files. Please try again.');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to upload: ${message}`);
     } finally {
       setIsUploading(false);
       setUploadProgress({ current: 0, total: 0 });

@@ -17,9 +17,10 @@ interface InteractiveViewProps {
   fileName: string;
   initialSourceFiles?: SourceFile[];
   initialPrompt?: string;
+  canEdit?: boolean;
 }
 
-export default function InteractiveView({ fileId, fileName, initialSourceFiles = [], initialPrompt }: InteractiveViewProps) {
+export default function InteractiveView({ fileId, fileName, initialSourceFiles = [], initialPrompt, canEdit = true }: InteractiveViewProps) {
   const [visualization, setVisualization] = useState<string>('');
   // Start with chat closed on mobile, open on desktop
   const [isChatOpen, setIsChatOpen] = useState(() => {

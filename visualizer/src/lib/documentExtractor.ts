@@ -2,7 +2,19 @@ import Anthropic from '@anthropic-ai/sdk';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 
-const anthropic = new Anthropic();
+// Lazy initialization to ensure env vars are loaded
+let _anthropic: Anthropic | null = null;
+
+function getAnthropicClient(): Anthropic {
+  if (!_anthropic) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error('ANTHROPIC_API_KEY environment variable is not set. Please export it or use ./start-dev.sh to run the dev server.');
+    }
+    _anthropic = new Anthropic({ apiKey });
+  }
+  return _anthropic;
+}
 
 export type SupportedMimeType =
   | 'text/plain'
@@ -45,7 +57,7 @@ export async function extractFromImage(
 ): Promise<ExtractionResult> {
   const base64 = imageData.toString('base64');
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 4096,
     messages: [
@@ -76,7 +88,7 @@ export async function extractFromPdf(pdfBuffer: Buffer): Promise<ExtractionResul
   // Use Claude's native PDF support
   const base64 = pdfBuffer.toString('base64');
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 4096,
     messages: [
@@ -129,7 +141,7 @@ export async function extractFromText(text: string): Promise<ExtractionResult> {
 }
 
 async function classifyAndStructure(text: string): Promise<ExtractionResult> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 4096,
     messages: [

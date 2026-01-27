@@ -1,23 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStorage, deleteFile, updateFileName, addSourceFile, removeSourceFile, SourceFile, generateId, ensureDirectories } from '@/lib/storage';
+import { getCurrentUser } from '@/lib/auth';
+import {
+  getFilesForUser,
+  getFilesSharedWithUser,
+  addFileForUser,
+  addSourceFileForUser,
+  updateFileName,
+  deleteFile,
+  deleteSourceFile,
+  SourceFile,
+} from '@/lib/userStorage';
 import { extractDocument, getMimeType } from '@/lib/documentExtractor';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-function getDataDir(): string {
-  return process.env.DATA_DIR || path.join(process.cwd(), '..', 'data');
-}
-
-function getImportsDir(): string {
-  return path.join(getDataDir(), 'imports');
-}
 
 export async function GET() {
-  const storage = await getStorage();
-  return NextResponse.json(storage.files);
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const ownedFiles = getFilesForUser(user.id);
+  const sharedFiles = getFilesSharedWithUser(user.id);
+
+  return NextResponse.json({
+    owned: ownedFiles,
+    shared: sharedFiles,
+  });
 }
 
 export async function POST(request: NextRequest) {
+  const user = await getCurrentUser();
+  console.log('POST /api/files - user:', user ? user.email : 'null');
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const formData = await request.formData();
     const files = formData.getAll('file') as File[];
@@ -39,7 +55,8 @@ export async function POST(request: NextRequest) {
         const mimeType = file.type || getMimeType(file.name);
         const extraction = await extractDocument(buffer, mimeType, file.name);
 
-        const sourceFile = await addSourceFile(
+        const sourceFile = await addSourceFileForUser(
+          user.id,
           documentId,
           extraction.text,
           file.name,
@@ -53,9 +70,6 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ sourceFiles: addedSourceFiles });
     }
-
-    // Create new document entry
-    await ensureDirectories();
 
     // Process all files
     const extractions: { text: string; fileType: string; fileName: string; mimeType: string }[] = [];
@@ -82,63 +96,57 @@ export async function POST(request: NextRequest) {
     const fileTypes = [...new Set(extractions.map(e => e.fileType))];
     const mainFileType = fileTypes.length === 1 ? fileTypes[0] : 'unknown';
 
-    // Create the main document
-    const mainId = generateId();
-    const mainFileName = `${mainId}.txt`;
-    const mainFilePath = path.join(getImportsDir(), mainFileName);
-    await fs.writeFile(mainFilePath, combinedText);
-
-    // Create source file entries for each uploaded file
-    const sourceFiles: SourceFile[] = [];
-    for (let i = 0; i < extractions.length; i++) {
-      const sourceId = generateId();
-      const sourceFileName = `${sourceId}.txt`;
-      const sourceFilePath = path.join(getImportsDir(), sourceFileName);
-      await fs.writeFile(sourceFilePath, extractions[i].text);
-
-      sourceFiles.push({
-        id: sourceId,
-        originalName: extractions[i].fileName,
-        filePath: sourceFileName,
-        mimeType: extractions[i].mimeType,
-        addedAt: new Date().toISOString(),
-      });
-    }
-
     // Determine display name
     const finalDisplayName = displayName ||
       (files.length === 1
         ? files[0].name.replace(/\.[^/.]+$/, '')
         : `${files.length} files`);
 
-    // Save to storage
-    const storage = await getStorage();
-    const importedFile = {
-      id: mainId,
-      originalName: files.length === 1 ? files[0].name : `${files.length} files`,
-      displayName: finalDisplayName,
-      fileType: mainFileType as 'schedule' | 'invoice' | 'healthcare' | 'unknown',
-      importedAt: new Date().toISOString(),
-      filePath: mainFileName,
-      sourceFiles,
-      ...(initialPrompt && { initialPrompt }),
-    };
+    // Create the document for this user
+    const importedFile = await addFileForUser(
+      user.id,
+      combinedText,
+      files.length === 1 ? files[0].name : `${files.length} files`,
+      finalDisplayName,
+      mainFileType as 'schedule' | 'invoice' | 'healthcare' | 'unknown',
+      extractions[0]?.mimeType,
+      initialPrompt || undefined
+    );
 
-    storage.files.unshift(importedFile);
-    const { saveStorage } = await import('@/lib/storage');
-    await saveStorage(storage);
+    // Add source files for each uploaded file
+    for (const extraction of extractions) {
+      await addSourceFileForUser(
+        user.id,
+        importedFile.id,
+        extraction.text,
+        extraction.fileName,
+        extraction.mimeType
+      );
+    }
 
-    return NextResponse.json(importedFile);
+    // Refetch to get source files
+    const { getFileForUser } = await import('@/lib/userStorage');
+    const fileWithSources = getFileForUser(importedFile.id, user.id);
+
+    return NextResponse.json(fileWithSources || importedFile);
   } catch (error) {
     console.error('Error uploading file:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to upload file';
+    const errorStack = error instanceof Error ? error.stack : '';
+    console.error('Stack:', errorStack);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to upload file' },
+      { error: errorMessage, details: errorStack },
       { status: 500 }
     );
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id, displayName } = await request.json();
 
@@ -146,10 +154,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Missing id or displayName' }, { status: 400 });
     }
 
-    const updated = await updateFileName(id, displayName);
+    const updated = updateFileName(id, user.id, displayName);
 
     if (!updated) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+      return NextResponse.json({ error: 'File not found or access denied' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
@@ -160,6 +168,11 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -171,18 +184,18 @@ export async function DELETE(request: NextRequest) {
 
     // If sourceFileId is provided, remove just that source file
     if (sourceFileId) {
-      const removed = await removeSourceFile(id, sourceFileId);
+      const removed = await deleteSourceFile(id, sourceFileId, user.id);
       if (!removed) {
-        return NextResponse.json({ error: 'Source file not found' }, { status: 404 });
+        return NextResponse.json({ error: 'Source file not found or access denied' }, { status: 404 });
       }
       return NextResponse.json({ success: true });
     }
 
     // Otherwise delete the entire document
-    const deleted = await deleteFile(id);
+    const deleted = await deleteFile(id, user.id);
 
     if (!deleted) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+      return NextResponse.json({ error: 'File not found or access denied' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getFile } from '@/lib/storage';
+import { getCurrentUser } from '@/lib/auth';
+import { getFileById, getUserAccessLevel } from '@/lib/userStorage';
 import InteractiveView from '@/components/InteractiveView';
 
 interface ViewPageProps {
@@ -8,12 +9,29 @@ interface ViewPageProps {
 }
 
 export default async function ViewPage({ params }: ViewPageProps) {
+  const user = await getCurrentUser();
+
+  // This should never happen due to middleware
+  if (!user) {
+    notFound();
+  }
+
   const { id } = await params;
-  const file = await getFile(id);
+
+  // Check access level
+  const accessLevel = getUserAccessLevel(user.id, id);
+  if (accessLevel === 'none') {
+    notFound();
+  }
+
+  const file = getFileById(id);
 
   if (!file) {
     notFound();
   }
+
+  const isOwner = accessLevel === 'owner';
+  const canEdit = accessLevel === 'owner' || accessLevel === 'edit';
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-slate-100 to-slate-200 pt-4 px-4 pb-2">
@@ -32,7 +50,12 @@ export default async function ViewPage({ params }: ViewPageProps) {
               </Link>
               <h1 className="text-2xl font-bold text-gray-800">{file.displayName}</h1>
             </div>
-            <div className="text-right">
+            <div className="text-right flex items-center gap-3">
+              {!isOwner && (
+                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
+                  Shared with you
+                </span>
+              )}
               <span className="inline-block px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm">
                 {file.fileType}
               </span>
@@ -48,6 +71,7 @@ export default async function ViewPage({ params }: ViewPageProps) {
           fileName={file.displayName}
           initialSourceFiles={file.sourceFiles || []}
           initialPrompt={file.initialPrompt}
+          canEdit={canEdit}
         />
       </div>
     </div>

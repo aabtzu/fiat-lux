@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { getFile, getFileContent, getSourceFileContent, getTemplateVisualization } from '@/lib/storage';
+import { getCurrentUser } from '@/lib/auth';
+import { getFileById, getUserAccessLevel, getFileContent, getTemplateVisualization } from '@/lib/userStorage';
 
 const anthropic = new Anthropic();
 
@@ -173,11 +174,22 @@ Widget B,,,50.00
 Widget C,200.00,,200.00`;
 
 export async function POST(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { fileId, message, history, currentVisualization, additionalFileIds } = await request.json();
 
     if (!fileId || !message) {
       return NextResponse.json({ error: 'Missing fileId or message' }, { status: 400 });
+    }
+
+    // Check user has access to this file
+    const accessLevel = getUserAccessLevel(user.id, fileId);
+    if (accessLevel === 'none') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     // Check if this is a CSV export request
@@ -260,18 +272,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Full context flow for initial generation or when adding new data
-    const file = await getFile(fileId);
+    const file = getFileById(fileId);
     if (!file) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    const content = await getFileContent(file);
+    const content = await getFileContent(file.userId, file.filePath);
 
     // Get source files content (files that are part of this document)
     let sourceFilesContext = '';
     if (file.sourceFiles && file.sourceFiles.length > 0) {
       for (const sf of file.sourceFiles) {
-        const sfContent = await getSourceFileContent(sf);
+        const sfContent = await getFileContent(file.userId, sf.filePath);
         sourceFilesContext += `\n---\nSource File: ${sf.originalName}\n---\n${sfContent}\n`;
       }
     }
@@ -280,10 +292,14 @@ export async function POST(request: NextRequest) {
     let additionalContext = '';
     if (additionalFileIds && additionalFileIds.length > 0) {
       for (const addFileId of additionalFileIds) {
-        const addFile = await getFile(addFileId);
-        if (addFile) {
-          const addContent = await getFileContent(addFile);
-          additionalContext += `\n---\nAdditional Document: ${addFile.displayName}\nType: ${addFile.fileType}\n---\n${addContent}\n`;
+        // Check access for each additional file
+        const addAccessLevel = getUserAccessLevel(user.id, addFileId);
+        if (addAccessLevel !== 'none') {
+          const addFile = getFileById(addFileId);
+          if (addFile) {
+            const addContent = await getFileContent(addFile.userId, addFile.filePath);
+            additionalContext += `\n---\nAdditional Document: ${addFile.displayName}\nType: ${addFile.fileType}\n---\n${addContent}\n`;
+          }
         }
       }
     }
@@ -291,7 +307,7 @@ export async function POST(request: NextRequest) {
     // Get template visualization from similar file type (for new visualizations)
     let templateContext = '';
     if (!currentVisualization) {
-      const template = await getTemplateVisualization(file.fileType, fileId);
+      const template = getTemplateVisualization(user.id, file.fileType, fileId);
       if (template) {
         templateContext = `
 ---
