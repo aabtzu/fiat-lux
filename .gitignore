@@ -8,3 +8,10 @@ data/storage.json
 .env
 .env.local
 .env.*.local
+
+# Python agents service
+agents/.env
+agents/__pycache__/
+agents/venv/
+agents/**/__pycache__/
+agents/**/*.pyc
