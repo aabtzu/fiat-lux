@@ -1,0 +1,43 @@
+<header class="mb-3 flex-shrink-0 flex items-center justify-between">
+  <div>
+    <a href="{{ url_for('main.dashboard') }}"
+       class="inline-flex items-center text-gray-500 hover:text-gray-700 text-sm mb-1 transition">
+      <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+      Dashboard
+    </a>
+    <h1 class="text-xl font-bold text-gray-800">{{ file.display_name }}</h1>
+  </div>
+
+  <div class="flex items-center gap-3">
+    {% if access != 'owner' %}
+      <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Shared with you</span>
+    {% endif %}
+    <span class="file-type-badge {{ badge_class(file.file_type) }}">{{ file.file_type }}</span>
+
+    <!-- Source files toggle -->
+    <button id="sources-toggle"
+            class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 transition">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <span id="sources-label">{{ source_files | length }} source{{ 's' if source_files | length != 1 }}</span>
+    </button>
+  </div>
+</header>
+
+<!-- Source files drawer -->
+<div id="sources-drawer" class="hidden mb-3 flex-shrink-0 bg-white rounded-lg border border-gray-200 px-4 py-3">
+  <div class="flex flex-wrap gap-2">
+    {% for sf in source_files %}
+      <span class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-full">
+        {{ sf.original_name }}
+      </span>
+    {% endfor %}
+    {% if not source_files %}
+      <span class="text-gray-400 text-xs">No source files recorded.</span>
+    {% endif %}
+  </div>
+</div>

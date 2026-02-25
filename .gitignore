@@ -15,3 +15,10 @@ agents/__pycache__/
 agents/venv/
 agents/**/__pycache__/
 agents/**/*.pyc
+
+# Python webapp
+webapp/.env
+webapp/.venv/
+webapp/__pycache__/
+webapp/**/__pycache__/
+webapp/**/*.pyc

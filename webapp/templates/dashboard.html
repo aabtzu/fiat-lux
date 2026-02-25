@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}FiatLux{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-amber-50 via-white to-orange-50 py-8 px-4">
+  <div class="max-w-3xl mx-auto">
+    {% include "includes/dashboard_header.html" %}
+    {% include "includes/dashboard_upload.html" %}
+    {% include "includes/dashboard_filelist.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}" type="module"></script>
+{% endblock %}

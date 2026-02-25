@@ -1,0 +1,48 @@
+<!-- Chat sidebar -->
+<div id="chat-panel" class="chat-panel flex flex-col bg-white rounded-xl shadow-sm overflow-hidden">
+
+  <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+    <h2 class="text-sm font-semibold text-gray-700">Assistant</h2>
+    <button id="chat-close" class="text-gray-400 hover:text-gray-600 transition" title="Close">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Message list -->
+  <div id="chat-messages" class="flex-1 overflow-y-auto px-4 py-3 space-y-3 text-sm">
+    <!-- Populated by view.js from VIEW_DATA.chatHistory -->
+  </div>
+
+  <!-- Input -->
+  <div class="px-4 py-3 border-t border-gray-100 flex-shrink-0">
+    <div class="flex gap-2">
+      <textarea id="chat-input"
+                class="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                rows="2"
+                placeholder="Ask a question or describe a visualization…"></textarea>
+      <button id="chat-send"
+              class="self-end px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600
+                     disabled:opacity-40 disabled:cursor-not-allowed transition flex-shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+      </button>
+    </div>
+    <p class="text-xs text-gray-400 mt-1">Shift+Enter for new line · Enter to send · Esc to cancel</p>
+  </div>
+
+</div>
+
+<!-- Chat open button (when sidebar is closed) -->
+<button id="chat-open"
+        class="hidden fixed right-4 bottom-4 p-3 bg-blue-500 text-white rounded-full
+               shadow-lg hover:bg-blue-600 transition z-10" title="Open assistant">
+  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+  </svg>
+</button>

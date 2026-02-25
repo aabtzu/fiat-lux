@@ -1,0 +1,33 @@
+<div id="file-list">
+  {% if files %}
+    <div id="file-cards" class="space-y-3">
+      {% for file in files %}
+        <div class="file-card" data-id="{{ file.id }}">
+          <div class="flex items-center gap-3">
+            <span class="file-type-badge {{ badge_class(file.file_type) }}">{{ file.file_type }}</span>
+            <div>
+              <p class="file-name font-medium text-gray-800"
+                 title="Double-click to rename">{{ file.display_name }}</p>
+              <p class="text-xs text-gray-400">{{ file.original_name }} &middot; {{ file.imported_at[:10] }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <a href="{{ url_for('view.view_file', file_id=file.id) }}"
+               class="text-sm text-blue-500 hover:text-blue-600 font-medium">Open</a>
+            <button class="delete-btn text-gray-300 hover:text-red-400 transition"
+                    data-id="{{ file.id }}" title="Delete">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div id="empty-state" class="empty-state">
+      No files yet. Upload your first document to get started.
+    </div>
+  {% endif %}
+</div>

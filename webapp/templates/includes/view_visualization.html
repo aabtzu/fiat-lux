@@ -1,0 +1,33 @@
+<div id="viz-panel" class="flex-1 min-h-0 flex flex-col">
+
+  <!-- Visualization iframe -->
+  <div class="flex-1 min-h-0 bg-white rounded-xl shadow-sm overflow-hidden relative">
+
+    <iframe id="viz-frame"
+            class="w-full h-full border-0"
+            sandbox="allow-scripts allow-same-origin"
+            title="Visualization"></iframe>
+
+    <!-- Empty state (shown when no visualization yet) -->
+    <div id="viz-empty"
+         class="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
+      <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+      </svg>
+      <p class="text-gray-500 font-medium mb-1">No visualization yet</p>
+      <p class="text-gray-400 text-sm">Ask the assistant to create one →</p>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="viz-loading"
+         class="absolute inset-0 bg-white bg-opacity-80 flex flex-col items-center justify-center hidden">
+      <svg class="animate-spin w-10 h-10 text-blue-500 mb-3" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+      <p class="text-gray-500 text-sm">Generating visualization…</p>
+    </div>
+
+  </div>
+</div>

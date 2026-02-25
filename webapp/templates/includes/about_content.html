@@ -1,0 +1,129 @@
+<!-- Auth-aware header -->
+<header class="mb-8 flex items-center justify-between">
+  {% if current_user %}
+    <a href="{{ url_for('main.dashboard') }}"
+       class="inline-flex items-center text-gray-600 hover:text-gray-800 transition">
+      <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+      Back to Dashboard
+    </a>
+  {% else %}
+    <span></span>
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('auth.login_page') }}"
+         class="text-sm text-gray-600 hover:text-gray-800 transition">Sign in</a>
+      <a href="{{ url_for('auth.register_page') }}"
+         class="text-sm bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">Get started</a>
+    </div>
+  {% endif %}
+</header>
+
+<!-- Banner -->
+<div class="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
+  <div class="bg-gradient-to-r from-amber-500 to-yellow-400 px-8 py-12 text-center">
+    <h1 class="text-4xl font-bold text-white mb-2">Fiat Lux</h1>
+    <p class="text-amber-100 text-lg">shedding light on information</p>
+  </div>
+
+  <div class="px-8 py-8 space-y-6">
+
+    <section>
+      <h2 class="text-xl font-semibold text-gray-800 mb-3">The Motto</h2>
+      <p class="text-gray-600 leading-relaxed">
+        <span class="font-medium text-amber-600">Fiat Lux</span> is the motto of the
+        University of California, Berkeley. The Latin phrase translates to "Let there
+        be light" — a call to illuminate and bring clarity.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="text-xl font-semibold text-gray-800 mb-3">What It Does</h2>
+      <p class="text-gray-600 leading-relaxed">
+        Upload a document — a class schedule, an invoice, a healthcare bill — and Fiat Lux
+        transforms it into a clear, interactive visualization. You can also ask questions
+        about it in plain English.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="text-xl font-semibold text-gray-800 mb-3">What We Visualize</h2>
+      <ul class="space-y-2 text-gray-600">
+        <li class="flex items-start gap-2">
+          <span class="text-blue-500 mt-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+          </span>
+          <span><strong>Schedules</strong> — weekly calendars that show your time at a glance</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-500 mt-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+            </svg>
+          </span>
+          <span><strong>Invoices</strong> — clear breakdowns of charges and totals</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-pink-500 mt-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+            </svg>
+          </span>
+          <span><strong>Healthcare bills</strong> — demystify medical costs and coverage</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-purple-500 mt-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"/>
+            </svg>
+          </span>
+          <span><strong>And more</strong> — any document that needs clarity</span>
+        </li>
+      </ul>
+    </section>
+
+  </div>
+</div>
+
+<!-- Live example -->
+<div class="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
+  <div class="px-8 py-5 border-b border-gray-100 flex items-center justify-between">
+    <div>
+      <h2 class="text-lg font-semibold text-gray-800">See it in action</h2>
+      <p class="text-sm text-gray-500 mt-0.5">
+        A college class schedule turned into an interactive weekly calendar
+      </p>
+    </div>
+    <a href="{{ url_for('static', filename='examples/schedule.html') }}" target="_blank"
+       class="inline-flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 font-medium transition">
+      Open full screen
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+      </svg>
+    </a>
+  </div>
+  <div class="example-preview-wrapper">
+    <iframe src="{{ url_for('static', filename='examples/schedule.html') }}"
+            class="example-preview-frame"
+            scrolling="no"
+            title="Schedule example"></iframe>
+  </div>
+</div>
+
+<!-- CTA for unauthenticated users -->
+{% if not current_user %}
+<div class="text-center py-4">
+  <p class="text-gray-500 mb-4">Ready to illuminate your documents?</p>
+  <a href="{{ url_for('auth.register_page') }}"
+     class="inline-block bg-amber-500 hover:bg-amber-600 text-white font-semibold px-8 py-3 rounded-lg transition">
+    Get started — it's free
+  </a>
+</div>
+{% endif %}
