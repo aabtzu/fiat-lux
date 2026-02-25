@@ -29,8 +29,13 @@ window.VIEW_DATA = {
 
   </div>
 </div>
+
+{% include "includes/share_dialog.html" %}
 {% endblock %}
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/view.js') }}" type="module"></script>
+{% if access == 'owner' %}
+<script src="{{ url_for('static', filename='js/share.js') }}" type="module"></script>
+{% endif %}
 {% endblock %}

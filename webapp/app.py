@@ -11,6 +11,7 @@ from auth_routes import auth_bp
 from main_routes import main_bp
 from file_routes import file_bp
 from view_routes import view_bp
+from share_routes import share_bp
 
 load_dotenv()
 
@@ -33,6 +34,7 @@ def create_app() -> Flask:
     app.register_blueprint(main_bp)
     app.register_blueprint(file_bp)
     app.register_blueprint(view_bp)
+    app.register_blueprint(share_bp)
 
     from auth import get_current_user
 

@@ -11,6 +11,25 @@ const uploadProgress = document.getElementById('upload-progress');
 const uploadStatus = document.getElementById('upload-status');
 const fileList     = document.getElementById('file-list');
 
+// ---------------------------------------------------------------------------
+// Tabs (owned / shared)
+// ---------------------------------------------------------------------------
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      const active = b.dataset.tab === tab;
+      b.classList.toggle('text-amber-600', active);
+      b.classList.toggle('border-amber-500', active);
+      b.classList.toggle('text-gray-400', !active);
+      b.classList.toggle('border-transparent', !active);
+    });
+    document.getElementById('panel-owned').classList.toggle('hidden', tab !== 'owned');
+    document.getElementById('panel-shared').classList.toggle('hidden', tab !== 'shared');
+  });
+});
+
 // Modal elements
 const uploadModal    = document.getElementById('upload-modal');
 const modalBackdrop  = document.getElementById('modal-backdrop');

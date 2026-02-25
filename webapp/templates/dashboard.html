@@ -10,8 +10,11 @@
     {% include "includes/dashboard_filelist.html" %}
   </div>
 </div>
+
+{% include "includes/share_dialog.html" %}
 {% endblock %}
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}" type="module"></script>
+<script src="{{ url_for('static', filename='js/share.js') }}" type="module"></script>
 {% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ file.display_name }} — Fiat Lux{% endblock %}
+
+{% block body_class %}h-screen overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200{% endblock %}
+
+{% block content %}
+<div class="h-screen flex flex-col py-4 px-4">
+  <div class="max-w-screen-2xl mx-auto w-full flex flex-col flex-1 min-h-0">
+
+    <!-- Header -->
+    <header class="mb-3 flex-shrink-0 flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-amber-500 font-bold text-sm">Fiat Lux</span>
+          <span class="text-gray-300">·</span>
+          <span class="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Shared view</span>
+        </div>
+        <h1 class="text-xl font-bold text-gray-800">{{ file.display_name }}</h1>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="file-type-badge {{ badge_class(file.file_type) }}">{{ file.file_type }}</span>
+        <a href="{{ url_for('main.about') }}"
+           class="text-xs text-gray-400 hover:text-gray-600 transition">About Fiat Lux</a>
+      </div>
+    </header>
+
+    <!-- Visualization -->
+    <div class="flex-1 bg-white rounded-xl shadow-sm overflow-hidden relative">
+      {% if file.visualization %}
+        <iframe class="w-full h-full border-none"
+                sandbox="allow-scripts"
+                srcdoc="{{ file.visualization | e }}"></iframe>
+      {% else %}
+        <div class="flex items-center justify-center h-full text-gray-400">
+          <p class="text-sm">No visualization available for this document.</p>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
