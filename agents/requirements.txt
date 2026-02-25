@@ -1,0 +1,14 @@
+# Fiat-Lux Agent Service Dependencies
+
+# Flask web framework
+flask==3.0.0
+flask-cors==4.0.0
+
+# fiat-lux-agents (includes anthropic, pandas, numpy)
+git+https://github.com/aabtzu/fiat-lux-agents#egg=fiat-lux-agents
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Development
+pytest==7.4.3
