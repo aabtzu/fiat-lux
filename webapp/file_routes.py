@@ -179,10 +179,27 @@ def rename_file(file_id):
 def delete_file_route(file_id):
     user = get_current_user()
     with db() as conn:
-        cur = conn.execute(
-            "DELETE FROM files WHERE id=? AND user_id=?",
+        row = conn.execute(
+            "SELECT file_path FROM files WHERE id=? AND user_id=?",
             (file_id, user['id']),
-        )
-    if cur.rowcount == 0:
-        return jsonify({'error': 'File not found or access denied'}), 404
+        ).fetchone()
+        if not row:
+            return jsonify({'error': 'File not found or access denied'}), 404
+
+        src_rows = conn.execute(
+            "SELECT file_path FROM source_files WHERE file_id=?",
+            (file_id,),
+        ).fetchall()
+
+        conn.execute("DELETE FROM source_files WHERE file_id=?", (file_id,))
+        conn.execute("DELETE FROM files WHERE id=?", (file_id,))
+
+    # Clean up extracted text files from disk
+    imports_dir = _user_imports_dir(user['id'])
+    for path in [row['file_path']] + [r['file_path'] for r in src_rows]:
+        try:
+            os.remove(os.path.join(imports_dir, path))
+        except FileNotFoundError:
+            pass
+
     return jsonify({'success': True})

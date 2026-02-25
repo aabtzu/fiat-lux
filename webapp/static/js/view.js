@@ -15,6 +15,7 @@ const chatClose   = document.getElementById('chat-close');
 const chatMessages = document.getElementById('chat-messages');
 const chatInput   = document.getElementById('chat-input');
 const chatSend    = document.getElementById('chat-send');
+const chatStop    = document.getElementById('chat-stop');
 const sourcesToggle = document.getElementById('sources-toggle');
 const sourcesDrawer = document.getElementById('sources-drawer');
 
@@ -71,6 +72,7 @@ sourcesToggle?.addEventListener('click', () => {
 // ---------------------------------------------------------------------------
 
 chatSend.addEventListener('click', sendMessage);
+chatStop.addEventListener('click', () => abortCtrl?.abort());
 
 chatInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -128,7 +130,8 @@ function setVisualization(html) {
 
 function setLoading(active) {
   isLoading = active;
-  chatSend.disabled = active;
+  chatSend.classList.toggle('hidden', active);
+  chatStop.classList.toggle('hidden', !active);
   chatInput.disabled = active;
   vizLoading.classList.toggle('hidden', !active);
 }

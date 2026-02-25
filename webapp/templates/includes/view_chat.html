@@ -23,16 +23,26 @@
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 rows="2"
                 placeholder="Ask a question or describe a visualization…"></textarea>
+      <!-- Send button (idle state) -->
       <button id="chat-send"
-              class="self-end px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600
+              class="self-end px-3 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600
                      disabled:opacity-40 disabled:cursor-not-allowed transition flex-shrink-0">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
         </svg>
       </button>
+      <!-- Stop button (loading state) -->
+      <button id="chat-stop"
+              class="hidden self-end px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600
+                     transition flex-shrink-0" title="Stop (Esc)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
     </div>
-    <p class="text-xs text-gray-400 mt-1">Shift+Enter for new line · Enter to send · Esc to cancel</p>
+    <p class="text-xs text-gray-400 mt-1">Shift+Enter for new line · Enter to send</p>
   </div>
 
 </div>
