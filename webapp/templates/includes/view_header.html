@@ -11,6 +11,7 @@
   </div>
 
   <div class="flex items-center gap-3">
+    {% include "includes/user_menu.html" %}
     {% if access != 'owner' %}
       <span class="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">Shared with you</span>
     {% endif %}
@@ -44,14 +45,19 @@
 
 <!-- Source files drawer -->
 <div id="sources-drawer" class="hidden mb-3 flex-shrink-0 bg-white rounded-lg border border-gray-200 px-4 py-3">
-  <div class="flex flex-wrap gap-2">
+  <div id="sources-chips" class="flex flex-wrap gap-2">
     {% for sf in source_files %}
-      <span class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-full">
+      <span class="source-chip inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-xs px-2 py-1 rounded-full"
+            data-sf-id="{{ sf.id }}">
         {{ sf.original_name }}
+        {% if access == 'owner' %}
+        <button class="remove-source ml-1 text-amber-400 hover:text-red-500 transition leading-none"
+                data-sf-id="{{ sf.id }}" title="Remove">×</button>
+        {% endif %}
       </span>
     {% endfor %}
     {% if not source_files %}
-      <span class="text-gray-400 text-xs">No source files recorded.</span>
+      <span id="sources-empty" class="text-gray-400 text-xs">No source files. Drop files on the visualization to add context.</span>
     {% endif %}
   </div>
 </div>

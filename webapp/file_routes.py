@@ -154,6 +154,28 @@ def upload_files():
         return jsonify({'error': str(e)}), 500
 
 
+@file_bp.route('/api/source-files/<sf_id>', methods=['DELETE'])
+@requires_auth_api
+def delete_source_file(sf_id):
+    user = get_current_user()
+    with db() as conn:
+        row = conn.execute(
+            """SELECT sf.file_path FROM source_files sf
+               JOIN files f ON f.id = sf.file_id
+               WHERE sf.id = ? AND f.user_id = ?""",
+            (sf_id, user['id'])
+        ).fetchone()
+        if not row:
+            return jsonify({'error': 'Not found or access denied'}), 404
+        conn.execute("DELETE FROM source_files WHERE id = ?", (sf_id,))
+
+    try:
+        os.remove(os.path.join(_user_imports_dir(user['id']), row['file_path']))
+    except FileNotFoundError:
+        pass
+    return jsonify({'success': True})
+
+
 @file_bp.route('/api/files/<file_id>', methods=['PATCH'])
 @requires_auth_api
 def rename_file(file_id):

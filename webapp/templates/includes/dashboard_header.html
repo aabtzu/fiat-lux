@@ -7,21 +7,7 @@
       </h1>
       <p class="text-xs text-gray-400 mt-0.5">shedding light on information</p>
     </div>
-    <div class="flex items-center gap-4">
-      <a href="{{ url_for('main.about') }}" title="About Fiat Lux"
-         class="text-gray-400 hover:text-gray-600 transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-      </a>
-      <div class="flex items-center gap-3">
-        <span class="text-sm text-gray-500">{{ user.display_name or user.email }}</span>
-        <a href="{{ url_for('auth.logout') }}"
-           class="text-xs px-3 py-1.5 border border-gray-200 rounded-full text-gray-500
-                  hover:border-gray-300 hover:text-gray-700 transition">Sign out</a>
-      </div>
-    </div>
+    {% include "includes/user_menu.html" %}
   </div>
 
   <!-- Section heading -->
