@@ -50,6 +50,7 @@ def _read_text(user_id, filename):
 
 
 def _get_source_files(file_id):
+    """Return source file metadata for display (chips in header)."""
     with db() as conn:
         rows = conn.execute(
             "SELECT id, original_name, mime_type FROM source_files"
@@ -59,6 +60,28 @@ def _get_source_files(file_id):
     return [dict(r) for r in rows]
 
 
+def _get_document_text(file, file_id):
+    """Concatenate all source files in order. Falls back to files.file_path for old records."""
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT original_name, file_path FROM source_files"
+            " WHERE file_id = ? ORDER BY added_at",
+            (file_id,)
+        ).fetchall()
+    if rows:
+        if len(rows) == 1:
+            return _read_text(file['user_id'], rows[0]['file_path'])
+        parts = [
+            f"=== {sf['original_name']} ===\n{_read_text(file['user_id'], sf['file_path'])}"
+            for sf in rows
+        ]
+        return '\n\n'.join(parts)
+    # Fallback: old records with a combined file_path blob
+    if file.get('file_path'):
+        return _read_text(file['user_id'], file['file_path'])
+    return ''
+
+
 _REREAD_PATTERN = re.compile(
     r'\b(re-?read|original (data|document)|all (data|items)|missing data|'
     r'from the source|don\'t see|where is|repopulate|reload|start over|'
@@ -66,9 +89,17 @@ _REREAD_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_INCORPORATE_PATTERN = re.compile(r'new data added|incorporate', re.IGNORECASE)
+
 _CHART_PATTERN = re.compile(
     r'\b(bar chart|line chart|pie chart|chart|graph|plot|histogram|'
     r'by month|by week|by day|by year|over time|trend)\b',
+    re.IGNORECASE,
+)
+
+# Must have a clear addition signal to use the fast append path
+_CHART_ADD_PATTERN = re.compile(
+    r'\b(add|show|create|give|include|append|put|insert)\b',
     re.IGNORECASE,
 )
 
@@ -77,12 +108,24 @@ _CHART_REMOVE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# "make X a chart" / "change X to a chart" → replacement, needs full HTML context
+_CHART_REPLACE_PATTERN = re.compile(
+    r'\b(make|change|replace|convert|turn|swap)\b',
+    re.IGNORECASE,
+)
+
 def _needs_full_reread(message: str) -> bool:
     return bool(_REREAD_PATTERN.search(message))
 
+def _incorporate_pattern_match(message: str) -> bool:
+    return bool(_INCORPORATE_PATTERN.search(message))
+
 def _is_chart_request(message: str) -> bool:
-    """True only for ADD-a-chart requests, not remove/delete."""
-    return bool(_CHART_PATTERN.search(message)) and not bool(_CHART_REMOVE_PATTERN.search(message))
+    """True only for clearly add-a-new-chart requests (has addition verb + chart noun, no remove/replace)."""
+    return (bool(_CHART_PATTERN.search(message))
+            and bool(_CHART_ADD_PATTERN.search(message))
+            and not bool(_CHART_REMOVE_PATTERN.search(message))
+            and not bool(_CHART_REPLACE_PATTERN.search(message)))
 
 def _extract_document_data(html: str) -> str | None:
     """Extract the window.DOCUMENT_DATA JSON array from visualization HTML."""
@@ -146,18 +189,26 @@ def chat(file_id):
         bot = DocumentBot()
 
         if current_html and not _needs_full_reread(message):
-            doc_data = _extract_document_data(current_html)
-            if doc_data and _is_chart_request(message):
-                current_app.logger.info('chat: fast chart path (Haiku + data JSON)')
-                result = bot.generate_chart_append(doc_data, message)
-                if result.get('html'):
-                    result['html'] = _inject_chart(current_html, result['html'])
+            if current_html and _incorporate_pattern_match(message):
+                # Refine the existing visualization, augmented with all source data,
+                # so the model can add the new rows while keeping the existing structure.
+                source_text = _get_document_text(file, file_id)
+                augmented = f"{message}\n\n--- Source data (all files) ---\n{source_text}"
+                current_app.logger.info('chat: incorporate path (Sonnet + HTML + source data)')
+                result = bot.refine(current_html, augmented)
             else:
-                current_app.logger.info('chat: refine path (Sonnet + full HTML, %d chars)', len(current_html))
-                result = bot.refine(current_html, message)
+                doc_data = _extract_document_data(current_html)
+                if doc_data and _is_chart_request(message):
+                    current_app.logger.info('chat: fast chart path (Haiku + data JSON)')
+                    result = bot.generate_chart_append(doc_data, message)
+                    if result.get('html'):
+                        result['html'] = _inject_chart(current_html, result['html'])
+                else:
+                    current_app.logger.info('chat: refine path (Sonnet + full HTML, %d chars)', len(current_html))
+                    result = bot.refine(current_html, message)
         else:
             current_app.logger.info('chat: full process path (Sonnet + document text)')
-            text = _read_text(file['user_id'], file['file_path'])
+            text = _get_document_text(file, file_id)
             result = bot.process(text, message)
 
         new_html = result.get('html') or current_html or None

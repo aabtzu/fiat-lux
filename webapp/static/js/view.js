@@ -6,6 +6,31 @@ import { showToast } from './app.js';
 
 const { fileId, initialHtml, chatHistory, initialPrompt, canEdit } = window.VIEW_DATA;
 
+// Injected into every visualization so the sandboxed iframe can:
+//  1. relay dragover → parent shows amber overlay
+//  2. handle the actual drop → read files as ArrayBuffers → transfer to parent
+const DRAG_BRIDGE = '<scr' + 'ipt>' +
+  'function _flHasFiles(dt){return dt&&[].indexOf.call(dt.types,"Files")>=0;}' +
+  'document.addEventListener("dragover",function(e){' +
+    'if(_flHasFiles(e.dataTransfer)){e.preventDefault();window.parent.postMessage({type:"fl-dragover"},"*");}' +
+  '});' +
+  'document.addEventListener("drop",function(e){' +
+    'e.preventDefault();' +
+    'var fs=e.dataTransfer.files;if(!fs.length)return;' +
+    'var infos=[],pending=fs.length;' +
+    'for(var i=0;i<fs.length;i++){(function(f){' +
+      'var r=new FileReader();' +
+      'r.onload=function(ev){' +
+        'infos.push({name:f.name,type:f.type,buffer:ev.target.result});' +
+        'if(--pending===0){' +
+          'window.parent.postMessage({type:"fl-files-dropped",files:infos},"*",infos.map(function(x){return x.buffer;}));' +
+        '}' +
+      '};' +
+      'r.readAsArrayBuffer(f);' +
+    '})(fs[i]);}' +
+  '});' +
+'</scr' + 'ipt>';
+
 const vizPanel      = document.getElementById('viz-panel');
 const vizFrame      = document.getElementById('viz-frame');
 const vizEmpty      = document.getElementById('viz-empty');
@@ -67,6 +92,30 @@ sourcesToggle?.addEventListener('click', () => {
   sourcesDrawer.classList.toggle('hidden');
 });
 
+// Remove source file (× button on chips)
+document.getElementById('sources-chips')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.remove-source');
+  if (!btn) return;
+  const sfId = btn.dataset.sfId;
+  try {
+    const res = await fetch(`/api/source-files/${sfId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error((await res.json()).error);
+    btn.closest('.source-chip').remove();
+    // Update count label
+    const chips = document.querySelectorAll('.source-chip');
+    if (sourcesLabel) {
+      const n = chips.length;
+      sourcesLabel.textContent = `${n} source${n !== 1 ? 's' : ''}`;
+    }
+    if (!chips.length) {
+      document.getElementById('sources-chips').innerHTML =
+        '<span id="sources-empty" class="text-gray-400 text-xs">No source files. Drop files on the visualization to add context.</span>';
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Chat send
 // ---------------------------------------------------------------------------
@@ -125,33 +174,68 @@ async function sendMessage(message) {
 // Drag-and-drop files onto viz panel → add to existing document
 // ---------------------------------------------------------------------------
 
-if (canEdit) {
-  let dragCounter = 0; // track nested dragenter/dragleave
+if (canEdit && vizDropOverlay) {
+  let dragTimer  = null;
+  let isDragging = false;
 
-  vizPanel.addEventListener('dragenter', (e) => {
-    if (!e.dataTransfer.types.includes('Files')) return;
+  function endDrag() {
+    clearTimeout(dragTimer);
+    isDragging = false;
+    vizDropOverlay.classList.add('hidden');
+  }
+
+  // Called by both document dragover (edges) and postMessage from the iframe (center).
+  // dragover fires continuously — the 150ms timeout acts as a heartbeat.
+  function activateDrag() {
+    if (!isDragging) {
+      isDragging = true;
+      vizDropOverlay.classList.remove('hidden');
+    }
+    clearTimeout(dragTimer);
+    dragTimer = setTimeout(endDrag, 150);
+  }
+
+  function onDragOver(e) {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
-    dragCounter++;
-    vizDropOverlay.classList.remove('hidden');
+    activateDrag();
+  }
+
+  // dragenter fires the moment a file drag enters the browser window — before
+  // the cursor can reach the iframe. Showing the overlay HERE means it's already
+  // covering the iframe when dragover first fires, so the browser picks the
+  // overlay (not the iframe) as the drop target.
+  document.addEventListener('dragenter', (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    activateDrag();
   });
 
-  vizPanel.addEventListener('dragleave', () => {
-    dragCounter--;
-    if (dragCounter <= 0) {
-      dragCounter = 0;
-      vizDropOverlay.classList.add('hidden');
+  // dragover heartbeat — fires on the overlay itself once it's shown, and on
+  // non-iframe areas of the page. Keeps the overlay alive while dragging.
+  document.addEventListener('dragover', onDragOver);
+
+  // Messages from the sandboxed iframe:
+  //  fl-dragover      → show/keep amber overlay alive
+  //  fl-files-dropped → iframe read the files and transferred them as ArrayBuffers
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'fl-dragover') {
+      activateDrag();
+    } else if (e.data?.type === 'fl-files-dropped') {
+      endDrag();
+      const files = (e.data.files || []).map(
+        info => new File([info.buffer], info.name, { type: info.type })
+      );
+      if (files.length) addFilesToDocument(files);
     }
   });
 
-  vizPanel.addEventListener('dragover', (e) => {
-    if (e.dataTransfer.types.includes('Files')) e.preventDefault();
-  });
+  // Prevent browser from navigating to dropped files anywhere on the page
+  document.addEventListener('drop', (e) => e.preventDefault());
 
-  vizPanel.addEventListener('drop', (e) => {
+  vizDropOverlay.addEventListener('drop', (e) => {
     e.preventDefault();
-    dragCounter = 0;
-    vizDropOverlay.classList.add('hidden');
     const files = e.dataTransfer.files;
+    endDrag();
     if (files.length) addFilesToDocument(files);
   });
 }
@@ -215,6 +299,11 @@ function updateSourcesUI(newFileNames) {
 
 function setVisualization(html) {
   vizEmpty.classList.add('hidden');
+  if (canEdit) {
+    html = html.includes('</body>')
+      ? html.replace('</body>', DRAG_BRIDGE + '\n</body>')
+      : html + '\n' + DRAG_BRIDGE;
+  }
   vizFrame.srcdoc = html;
 }
 

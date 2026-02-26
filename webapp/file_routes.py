@@ -109,22 +109,12 @@ def upload_files():
                     added.append({'id': sf_id, 'original_name': e['original_name']})
             return jsonify({'sourceFiles': added})
 
-        # New document — combine all extracted texts
-        if len(extractions) > 1:
-            parts = [
-                f"=== File {i+1}: {e['original_name']} ===\n{_read_text(user['id'], e['text_file'])}"
-                for i, e in enumerate(extractions)
-            ]
-            combined = '\n\n'.join(parts)
-        else:
-            combined = _read_text(user['id'], extractions[0]['text_file'])
-
+        # source_files is the canonical list — no combined blob needed
         file_types = list({e['file_type'] for e in extractions})
         main_type  = file_types[0] if len(file_types) == 1 else 'unknown'
         orig_name  = extractions[0]['original_name'] if len(extractions) == 1 else f'{len(extractions)} files'
         final_name = display_name or orig_name.rsplit('.', 1)[0]
 
-        combined_file = _save_text(user['id'], combined)
         file_id = _gen_id()
 
         with db() as conn:
@@ -133,7 +123,7 @@ def upload_files():
                 " (id, user_id, original_name, display_name, file_type, file_path, original_mime_type, initial_prompt)"
                 " VALUES (?,?,?,?,?,?,?,?)",
                 (file_id, user['id'], orig_name, final_name, main_type,
-                 combined_file, extractions[0]['mime_type'], initial_prompt or None),
+                 '', extractions[0]['mime_type'], initial_prompt or None),
             )
             for e in extractions:
                 conn.execute(
@@ -216,9 +206,12 @@ def delete_file_route(file_id):
         conn.execute("DELETE FROM source_files WHERE file_id=?", (file_id,))
         conn.execute("DELETE FROM files WHERE id=?", (file_id,))
 
-    # Clean up extracted text files from disk
+    # Clean up extracted text files from disk (file_path may be '' for new-model records)
     imports_dir = _user_imports_dir(user['id'])
-    for path in [row['file_path']] + [r['file_path'] for r in src_rows]:
+    paths = [r['file_path'] for r in src_rows]
+    if row['file_path']:
+        paths.append(row['file_path'])
+    for path in paths:
         try:
             os.remove(os.path.join(imports_dir, path))
         except FileNotFoundError:
