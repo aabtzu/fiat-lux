@@ -74,7 +74,7 @@ Open [http://localhost:5001](http://localhost:5001)
 - **Flask** + SQLite (Python 3.11)
 - **Vanilla JS** + Tailwind CSS
 - **Claude API** (Anthropic) — document extraction, classification, visualization generation
-- **fiat-lux-agents** package — DocumentBot, FilterBot, ChatBot
+- **fiat-lux-agents** package — DocumentBot, FilterBot, ChatBot — [how it's used →](docs/agents.md)
 
 ## Project Structure
 
