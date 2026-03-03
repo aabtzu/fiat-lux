@@ -1,19 +1,19 @@
 services:
   - type: web
     name: fiat-lux
-    runtime: node
+    runtime: python
     region: oregon
-    rootDir: visualizer
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
+    rootDir: webapp
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --preload
     disk:
       name: data
       mountPath: /opt/render/project/data
       sizeGB: 1
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: DATA_DIR
         value: /opt/render/project/data
+      - key: SECRET_KEY
+        generateValue: true
       - key: ANTHROPIC_API_KEY
         sync: false

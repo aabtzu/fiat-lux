@@ -88,7 +88,10 @@ CREATE TABLE IF NOT EXISTS source_files (
   original_name TEXT NOT NULL,
   file_path TEXT NOT NULL,
   mime_type TEXT,
-  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+  added_at TEXT NOT NULL DEFAULT (datetime('now')),
+  is_style_ref INTEGER NOT NULL DEFAULT 0,
+  original_file_path TEXT,
+  csv_file_path TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_source_files_file_id ON source_files(file_id);
 
@@ -113,4 +116,12 @@ def initialise_schema():
     """Create tables if they don't exist. Safe to call on every startup."""
     with db() as conn:
         conn.executescript(SCHEMA)
+        # Migrations for existing DBs
+        existing = {r[1] for r in conn.execute("PRAGMA table_info(source_files)")}
+        if 'is_style_ref' not in existing:
+            conn.execute("ALTER TABLE source_files ADD COLUMN is_style_ref INTEGER NOT NULL DEFAULT 0")
+        if 'original_file_path' not in existing:
+            conn.execute("ALTER TABLE source_files ADD COLUMN original_file_path TEXT")
+        if 'csv_file_path' not in existing:
+            conn.execute("ALTER TABLE source_files ADD COLUMN csv_file_path TEXT")
     print(f"[db] Schema ready — {get_db_path()}")

@@ -53,26 +53,54 @@ def _get_source_files(file_id):
     """Return source file metadata for display (chips in header)."""
     with db() as conn:
         rows = conn.execute(
-            "SELECT id, original_name, mime_type FROM source_files"
+            "SELECT id, original_name, mime_type, is_style_ref FROM source_files"
             " WHERE file_id = ? ORDER BY added_at",
             (file_id,)
         ).fetchall()
     return [dict(r) for r in rows]
 
 
-def _get_document_text(file, file_id):
-    """Concatenate all source files in order. Falls back to files.file_path for old records."""
+def _get_style_refs(file_id, user_id):
+    """Return raw bytes for any style-reference source files."""
     with db() as conn:
         rows = conn.execute(
-            "SELECT original_name, file_path FROM source_files"
+            "SELECT sf.original_name, sf.mime_type, sf.original_file_path"
+            " FROM source_files sf JOIN files f ON f.id = sf.file_id"
+            " WHERE sf.file_id = ? AND f.user_id = ? AND sf.is_style_ref = 1"
+            " AND sf.original_file_path IS NOT NULL"
+            " ORDER BY sf.added_at",
+            (file_id, user_id)
+        ).fetchall()
+
+    refs = []
+    data_dir = current_app.config['DATA_DIR']
+    for r in rows:
+        path = os.path.join(data_dir, 'users', user_id, 'imports', r['original_file_path'])
+        try:
+            with open(path, 'rb') as f:
+                refs.append({'name': r['original_name'], 'mime_type': r['mime_type'], 'bytes': f.read()})
+        except FileNotFoundError:
+            pass
+    return refs
+
+
+def _get_document_text(file, file_id):
+    """Concatenate all source files in order. Prefers CSV over text when available.
+    Falls back to files.file_path for old records."""
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT original_name, file_path, csv_file_path FROM source_files"
             " WHERE file_id = ? ORDER BY added_at",
             (file_id,)
         ).fetchall()
     if rows:
+        def _best_path(sf):
+            # CSV is more compact and structured — Claude handles it better for tabular data
+            return sf['csv_file_path'] if sf['csv_file_path'] else sf['file_path']
         if len(rows) == 1:
-            return _read_text(file['user_id'], rows[0]['file_path'])
+            return _read_text(file['user_id'], _best_path(rows[0]))
         parts = [
-            f"=== {sf['original_name']} ===\n{_read_text(file['user_id'], sf['file_path'])}"
+            f"=== {sf['original_name']} ===\n{_read_text(file['user_id'], _best_path(sf))}"
             for sf in rows
         ]
         return '\n\n'.join(parts)
@@ -80,6 +108,7 @@ def _get_document_text(file, file_id):
     if file.get('file_path'):
         return _read_text(file['user_id'], file['file_path'])
     return ''
+
 
 
 _REREAD_PATTERN = re.compile(
@@ -187,6 +216,7 @@ def chat(file_id):
     try:
         from fiat_lux_agents import DocumentBot
         bot = DocumentBot()
+        style_refs = _get_style_refs(file_id, user['id'])
 
         if current_html and not _needs_full_reread(message):
             if current_html and _incorporate_pattern_match(message):
@@ -195,7 +225,7 @@ def chat(file_id):
                 source_text = _get_document_text(file, file_id)
                 augmented = f"{message}\n\n--- Source data (all files) ---\n{source_text}"
                 current_app.logger.info('chat: incorporate path (Sonnet + HTML + source data)')
-                result = bot.refine(current_html, augmented)
+                result = bot.refine(current_html, augmented, style_refs=style_refs or None)
             else:
                 doc_data = _extract_document_data(current_html)
                 if doc_data and _is_chart_request(message):
@@ -205,11 +235,11 @@ def chat(file_id):
                         result['html'] = _inject_chart(current_html, result['html'])
                 else:
                     current_app.logger.info('chat: refine path (Sonnet + full HTML, %d chars)', len(current_html))
-                    result = bot.refine(current_html, message)
+                    result = bot.refine(current_html, message, style_refs=style_refs or None)
         else:
             current_app.logger.info('chat: full process path (Sonnet + document text)')
             text = _get_document_text(file, file_id)
-            result = bot.process(text, message)
+            result = bot.process(text, message, style_refs=style_refs or None)
 
         new_html = result.get('html') or current_html or None
         new_history = history + [
@@ -231,4 +261,27 @@ def chat(file_id):
 
     except Exception as e:
         current_app.logger.error('Chat error', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@view_bp.route('/api/export-python/<file_id>', methods=['POST'])
+@requires_auth_api
+def export_python(file_id):
+    user = get_current_user()
+    file, access = _get_file(file_id, user['id'])
+    if not file:
+        return jsonify({'error': 'File not found'}), 404
+
+    data = request.get_json() or {}
+    current_html = data.get('currentHtml', '') or file.get('visualization') or ''
+    if not current_html:
+        return jsonify({'error': 'No visualization to convert'}), 400
+
+    try:
+        from fiat_lux_agents import DocumentBot
+        bot = DocumentBot()
+        result = bot.to_python(current_html)
+        return jsonify({'code': result.get('code'), 'message': result.get('message', '')})
+    except Exception as e:
+        current_app.logger.error('export_python error', exc_info=True)
         return jsonify({'error': str(e)}), 500

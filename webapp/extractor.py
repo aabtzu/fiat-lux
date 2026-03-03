@@ -43,10 +43,17 @@ Use "unknown" only if you truly cannot determine the type.
 Then extract ALL the text content, preserving structure as much as possible.
 Be thorough — include every item, every row, every entry. Do not summarize or skip anything.
 
+Also, if the document contains tabular data (tables, itemized lists, structured records
+with consistent columns), extract every row as a JSON array of objects in "tableData".
+Use consistent, short snake_case keys derived from the column headers.
+Set tableData to null if the document has no clear tabular structure (narrative text,
+contracts, unstructured notes).
+
 Respond in this exact JSON format:
 {
   "fileType": "your short label here",
-  "extractedText": "the complete extracted text content"
+  "extractedText": "the complete extracted text content",
+  "tableData": [{"col1": "val1", "col2": "val2"}, ...] or null
 }"""
 
 
@@ -68,20 +75,22 @@ def _parse(text: str) -> dict:
         if m:
             parsed = json.loads(m.group(0))
             ft = (parsed.get('fileType') or 'unknown').strip().lower()
+            td = parsed.get('tableData')
             return {
-                'text': parsed.get('extractedText', text),
-                'file_type': ft or 'unknown',
+                'text':       parsed.get('extractedText', text),
+                'file_type':  ft or 'unknown',
+                'table_data': td if isinstance(td, list) and td else None,
             }
     except Exception:
         pass
-    return {'text': text, 'file_type': 'unknown'}
+    return {'text': text, 'file_type': 'unknown', 'table_data': None}
 
 
 def _via_claude_image(file_bytes: bytes, mime_type: str) -> dict:
     b64 = base64.standard_b64encode(file_bytes).decode()
     resp = _client().messages.create(
         model='claude-sonnet-4-6',
-        max_tokens=4096,
+        max_tokens=8192,
         messages=[{'role': 'user', 'content': [
             {'type': 'image', 'source': {'type': 'base64', 'media_type': mime_type, 'data': b64}},
             {'type': 'text', 'text': _EXTRACTION_PROMPT},
@@ -90,12 +99,20 @@ def _via_claude_image(file_bytes: bytes, mime_type: str) -> dict:
     return _parse(resp.content[0].text)
 
 
+_PDF_CLAUDE_PAGE_LIMIT = 5   # use Claude native PDF for small docs; pypdf for larger ones
+
+
 def _via_claude_pdf(file_bytes: bytes) -> dict:
+    # Check page count cheaply before deciding extraction path
+    page_count = _pdf_page_count(file_bytes)
+    if page_count > _PDF_CLAUDE_PAGE_LIMIT:
+        return _extract_pdf_text_fallback(file_bytes)
+
     b64 = base64.standard_b64encode(file_bytes).decode()
     try:
         resp = _client().messages.create(
             model='claude-sonnet-4-6',
-            max_tokens=4096,
+            max_tokens=8192,
             messages=[{'role': 'user', 'content': [
                 {'type': 'document', 'source': {'type': 'base64', 'media_type': 'application/pdf', 'data': b64}},
                 {'type': 'text', 'text': _EXTRACTION_PROMPT},
@@ -103,29 +120,68 @@ def _via_claude_pdf(file_bytes: bytes) -> dict:
         )
         return _parse(resp.content[0].text)
     except Exception as e:
-        # Fall back to text extraction if PDF is too large or unsupported
         if 'pages' in str(e).lower() or '400' in str(e):
             return _extract_pdf_text_fallback(file_bytes)
         raise
 
 
+def _pdf_page_count(file_bytes: bytes) -> int:
+    try:
+        from pypdf import PdfReader
+        from io import BytesIO
+        return len(PdfReader(BytesIO(file_bytes)).pages)
+    except Exception:
+        return 0
+
+
 def _extract_pdf_text_fallback(file_bytes: bytes) -> dict:
-    """Extract text from PDF using pypdf (no page limit)."""
+    """Extract text from PDF using pypdf (no page limit), classify with a short sample."""
     try:
         from pypdf import PdfReader
         from io import BytesIO
         reader = PdfReader(BytesIO(file_bytes))
         pages = [page.extract_text() or '' for page in reader.pages]
         text = '\n\n'.join(f'[Page {i+1}]\n{t}' for i, t in enumerate(pages) if t.strip())
-        return _classify_text(text or '[No extractable text found in PDF]')
+        if not text.strip():
+            return {'text': '[No extractable text found in PDF]', 'file_type': 'unknown', 'table_data': None}
+        return {'text': text, 'file_type': _classify_type_only(text[:3000]), 'table_data': None}
     except ImportError:
         return {'text': '[pypdf not installed — install it to support large PDFs]', 'file_type': 'unknown'}
+
+
+def _classify_type_only(sample: str) -> str:
+    """Classify document type from a short text sample. Returns a short lowercase label."""
+    try:
+        resp = _client().messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=32,
+            messages=[{'role': 'user', 'content': (
+                'What type of document is this? Reply with a short label only '
+                '(1-3 words, lowercase) like "medical bill", "class schedule", '
+                '"bank statement", "invoice", "contract", or "unknown".\n\n' + sample
+            )}],
+        )
+        return resp.content[0].text.strip().lower()[:50]
+    except Exception:
+        return 'unknown'
+
+
+def _df_to_records(df) -> list:
+    """Convert DataFrame to JSON-safe records, capped at 5000 rows."""
+    import math
+    rows = df.head(5000).to_dict(orient='records')
+    # Replace NaN/inf with None for JSON safety
+    clean = []
+    for row in rows:
+        clean.append({k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
+                      for k, v in row.items()})
+    return clean
 
 
 def _classify_text(text: str) -> dict:
     resp = _client().messages.create(
         model='claude-sonnet-4-6',
-        max_tokens=4096,
+        max_tokens=8192,
         messages=[{'role': 'user', 'content': f'{_EXTRACTION_PROMPT}\n\nDocument content:\n\n{text}'}],
     )
     return _parse(resp.content[0].text)
@@ -159,14 +215,19 @@ def extract_document(file_bytes: bytes, mime_type: str, filename: str) -> dict:
         import pandas as pd
         from io import BytesIO
         xl = pd.ExcelFile(BytesIO(file_bytes))
+        first_df = xl.parse(xl.sheet_names[0])
         parts = [f'=== Sheet: {s} ===\n{xl.parse(s).to_csv(index=False)}' for s in xl.sheet_names]
-        return _classify_text('\n\n'.join(parts))
+        result = _classify_text('\n\n'.join(parts))
+        result['table_data'] = _df_to_records(first_df)
+        return result
 
     if mime_type == 'text/csv' or filename.lower().endswith('.csv'):
         import pandas as pd
         from io import BytesIO
         df = pd.read_csv(BytesIO(file_bytes))
-        return _classify_text(df.to_csv(index=False))
+        result = _classify_text(df.to_csv(index=False))
+        result['table_data'] = _df_to_records(df)
+        return result
 
     # Default: plain text
     try:
