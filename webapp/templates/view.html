@@ -22,6 +22,17 @@ window.VIEW_DATA = {
 
     {% include "includes/view_header.html" %}
 
+    {% if source_files | length == 0 and file.visualization %}
+    <div id="stale-data-banner"
+         class="flex items-center gap-2 mb-3 flex-shrink-0 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+      <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      </svg>
+      No data sources — drop new files onto the visualization to update it.
+    </div>
+    {% endif %}
+
     <div class="flex flex-1 min-h-0 gap-4">
       {% include "includes/view_visualization.html" %}
       {% include "includes/view_chat.html" %}
@@ -34,6 +45,8 @@ window.VIEW_DATA = {
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="{{ url_for('static', filename='js/view.js') }}" type="module"></script>
 {% if access == 'owner' %}
 <script src="{{ url_for('static', filename='js/share.js') }}" type="module"></script>

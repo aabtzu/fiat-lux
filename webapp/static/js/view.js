@@ -6,6 +6,64 @@ import { showToast } from './app.js';
 
 const { fileId, initialHtml, chatHistory, initialPrompt, canEdit } = window.VIEW_DATA;
 
+// Injected into every visualization to add a "Save" hover button on each
+// canvas/svg element. On click, reads the element as JPEG and posts to parent.
+const COPY_BRIDGE = '<scr' + 'ipt>(function(){' +
+  'var S="position:absolute;top:6px;right:6px;z-index:999;background:rgba(255,255,255,.9);' +
+    'border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;cursor:pointer;' +
+    'font-size:11px;display:none;";' +
+  'function send(cv){cv.toBlob(function(b){var r=new FileReader();' +
+    'r.onload=function(){window.parent.postMessage({type:"fl-save-chart",dataUrl:r.result},"*");};' +
+    'r.readAsDataURL(b);},"image/jpeg",.95);}' +
+  'function addBtn(el){if(el.dataset.flb)return;el.dataset.flb="1";' +
+    'var p=el.parentNode,d=document.createElement("div");' +
+    'd.style.cssText="position:relative;display:inline-block;max-width:100%;";' +
+    'p.insertBefore(d,el);d.appendChild(el);' +
+    'var btn=document.createElement("button");btn.textContent="⬇ Save";btn.style.cssText=S;' +
+    'd.onmouseenter=function(){btn.style.display="block";};' +
+    'd.onmouseleave=function(){btn.style.display="none";};' +
+    'btn.onclick=function(e){e.stopPropagation();' +
+      'if(el.tagName==="CANVAS"){send(el);return;}' +
+      'var xml=new XMLSerializer().serializeToString(el);' +
+      'var u=URL.createObjectURL(new Blob([xml],{type:"image/svg+xml"}));' +
+      'var img=new Image(),rc=el.getBoundingClientRect();' +
+      'img.onload=function(){var c=document.createElement("canvas");' +
+        'c.width=rc.width*2;c.height=rc.height*2;' +
+        'c.getContext("2d").drawImage(img,0,0,c.width,c.height);' +
+        'URL.revokeObjectURL(u);send(c);};img.src=u;};' +
+    'd.appendChild(btn);}' +
+  'function init(){document.querySelectorAll("canvas,svg").forEach(addBtn);}' +
+  'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);' +
+  'else setTimeout(init,200);' +
+  'new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){' +
+    'if(!n||n.nodeType!==1)return;' +
+    'if(n.tagName==="CANVAS"||n.tagName==="SVG")addBtn(n);' +
+    'else if(n.querySelectorAll)n.querySelectorAll("canvas,svg").forEach(addBtn);' +
+  '});});}).observe(document.documentElement,{childList:true,subtree:true});' +
+'})();</scr' + 'ipt>';
+
+// Injected into every visualization to handle CSV export requests from the parent.
+// Parent sends {type:'fl-get-csv'}, iframe replies with {type:'fl-csv-data', tables:[...]}.
+const CSV_BRIDGE = '<scr' + 'ipt>' +
+  'window.addEventListener("message",function(e){' +
+    'if(!e.data||e.data.type!=="fl-get-csv")return;' +
+    'var tbls=document.querySelectorAll("table");' +
+    'var out=[];' +
+    'tbls.forEach(function(t,i){' +
+      'var rows=[];' +
+      't.querySelectorAll("tr").forEach(function(tr){' +
+        'var cells=[];' +
+        'tr.querySelectorAll("th,td").forEach(function(td){' +
+          'cells.push(\'"\'+td.textContent.trim().replace(/"/g,\'""\')+\'"\');' +
+        '});' +
+        'if(cells.length)rows.push(cells.join(","));' +
+      '});' +
+      'if(rows.length)out.push({index:i+1,csv:rows.join("\\n")});' +
+    '});' +
+    'window.parent.postMessage({type:"fl-csv-data",tables:out},"*");' +
+  '});' +
+'</scr' + 'ipt>';
+
 // Injected into every visualization so the sandboxed iframe can:
 //  1. relay dragover → parent shows amber overlay
 //  2. handle the actual drop → read files as ArrayBuffers → transfer to parent
@@ -225,7 +283,7 @@ if (canEdit && vizDropOverlay) {
       const files = (e.data.files || []).map(
         info => new File([info.buffer], info.name, { type: info.type })
       );
-      if (files.length) addFilesToDocument(files);
+      if (files.length) showAddFilesModal(files);
     }
   });
 
@@ -236,16 +294,195 @@ if (canEdit && vizDropOverlay) {
     e.preventDefault();
     const files = e.dataTransfer.files;
     endDrag();
-    if (files.length) addFilesToDocument(files);
+    if (files.length) showAddFilesModal(files);
   });
 }
 
-async function addFilesToDocument(files) {
+// fl-save-chart: individual chart save from inside the iframe
+window.addEventListener('message', (e) => {
+  if (e.data?.type !== 'fl-save-chart') return;
+  const a = document.createElement('a');
+  a.href = e.data.dataUrl;
+  a.download = 'chart.jpg';
+  a.click();
+  showToast('Chart saved');
+});
+
+// fl-csv-data: iframe replies with extracted table data → download as CSV
+window.addEventListener('message', (e) => {
+  if (e.data?.type !== 'fl-csv-data') return;
+  const tables = e.data.tables || [];
+  if (!tables.length) { showToast('No tables found', 'error'); return; }
+  const csv = tables.length === 1
+    ? tables[0].csv
+    : tables.map(t => `# Table ${t.index}\n${t.csv}`).join('\n\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (document.title.split('—')[0].trim() || 'data') + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate
+// ---------------------------------------------------------------------------
+
+document.getElementById('duplicate-btn')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/files/${fileId}/duplicate`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    showToast('Duplicated — opening now…');
+    window.location.href = `/view/${data.id}`;
+  } catch (err) {
+    showToast(err.message, 'error');
+    btn.disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Export
+// ---------------------------------------------------------------------------
+
+const exportWrap     = document.getElementById('export-wrap');
+const exportBtn      = document.getElementById('export-btn');
+const exportDropdown = document.getElementById('export-dropdown');
+
+exportBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  exportDropdown.classList.toggle('hidden');
+});
+document.addEventListener('click', () => exportDropdown?.classList.add('hidden'));
+
+document.getElementById('export-csv')?.addEventListener('click', () => {
+  if (!currentHtml) return;
+  // Ask the iframe to extract its tables and reply via postMessage
+  vizFrame.contentWindow?.postMessage({ type: 'fl-get-csv' }, '*');
+});
+
+document.getElementById('copy-html')?.addEventListener('click', async () => {
+  if (!currentHtml) return;
+  try {
+    await navigator.clipboard.writeText(currentHtml);
+    showToast('HTML copied to clipboard');
+  } catch {
+    showToast('Copy failed — try downloading instead', 'error');
+  }
+});
+
+document.getElementById('copy-python')?.addEventListener('click', async () => {
+  if (!currentHtml) return;
+  showToast('Generating Python code…');
+  try {
+    const res = await fetch(`/api/export-python/${fileId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentHtml }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!data.code) throw new Error('No Python code returned');
+    await navigator.clipboard.writeText(data.code);
+    showToast('Python code copied to clipboard');
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+});
+
+document.getElementById('export-html')?.addEventListener('click', () => {
+  if (!currentHtml) return;
+  const blob = new Blob([currentHtml], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (document.title.split('—')[0].trim() || 'visualization') + '.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+document.getElementById('export-pdf')?.addEventListener('click', async () => {
+  if (!currentHtml) return;
+  showToast('Preparing PDF…');
+  try {
+    const { canvas } = await _renderVizToCanvas();
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const { jsPDF } = window.jspdf;
+    const w = canvas.width / 2, h = canvas.height / 2;
+    const pdf = new jsPDF({ orientation: w > h ? 'landscape' : 'portrait', unit: 'px', format: [w, h] });
+    pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
+    pdf.save((document.title.split('—')[0].trim() || 'visualization') + '.pdf');
+  } catch (err) {
+    showToast('Export failed: ' + err.message, 'error');
+  }
+});
+
+async function _renderVizToCanvas() {
+  const blob = new Blob([currentHtml], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const w = vizFrame.offsetWidth, h = vizFrame.offsetHeight;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = `position:fixed;left:-9999px;top:0;width:${w}px;height:${h}px;`;
+  document.body.appendChild(frame);
+  frame.src = url;
+  await new Promise(r => { frame.onload = r; });
+  await new Promise(r => setTimeout(r, 800));   // let charts finish rendering
+  const canvas = await window.html2canvas(frame.contentDocument.body, { scale: 2, logging: false });
+  document.body.removeChild(frame);
+  URL.revokeObjectURL(url);
+  return { canvas };
+}
+
+// ---------------------------------------------------------------------------
+// Add-files modal
+// ---------------------------------------------------------------------------
+
+let _pendingDropFiles = null;
+
+function showAddFilesModal(files) {
+  _pendingDropFiles = files;
+  const chips = document.getElementById('add-files-chips');
+  chips.innerHTML = '';
+  Array.from(files).forEach(f => {
+    const span = document.createElement('span');
+    span.className = 'inline-flex items-center bg-amber-50 text-amber-700 text-xs px-2 py-1 rounded-full';
+    span.textContent = f.name;
+    chips.appendChild(span);
+  });
+  document.getElementById('add-files-note').value = '';
+  document.getElementById('add-files-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('add-files-note').focus(), 50);
+}
+
+function closeAddFilesModal() {
+  document.getElementById('add-files-modal').classList.add('hidden');
+  document.getElementById('add-files-style-ref').checked = false;
+  _pendingDropFiles = null;
+}
+
+document.getElementById('add-files-confirm')?.addEventListener('click', async () => {
+  const files      = _pendingDropFiles;
+  const note       = document.getElementById('add-files-note').value.trim();
+  const isStyleRef = document.getElementById('add-files-style-ref').checked;
+  closeAddFilesModal();
+  if (files) await addFilesToDocument(files, note, isStyleRef);
+});
+
+document.getElementById('add-files-cancel')?.addEventListener('click', closeAddFilesModal);
+document.getElementById('add-files-backdrop')?.addEventListener('click', closeAddFilesModal);
+document.getElementById('add-files-note')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('add-files-confirm').click(); }
+  if (e.key === 'Escape') closeAddFilesModal();
+});
+
+async function addFilesToDocument(files, note = '', isStyleRef = false) {
   setUploading(true);
 
   const formData = new FormData();
   for (const f of files) formData.append('file', f);
   formData.append('documentId', fileId);
+  if (isStyleRef) formData.append('isStyleRef', '1');
 
   try {
     const res = await fetch('/api/files', { method: 'POST', body: formData });
@@ -256,8 +493,12 @@ async function addFilesToDocument(files) {
     const names = (data.sourceFiles || []).map(f => f.original_name);
     if (names.length) {
       updateSourcesUI(names);
-      // Auto-send incorporation message
-      const msg = `New data added: ${names.join(', ')}. Please incorporate this into the existing visualization.`;
+      // Auto-send incorporation message.
+      // If no chat history this is likely a fresh duplicate — ask to replace data but keep the style.
+      const noteClause = note ? ` User note: ${note}.` : '';
+      const msg = history.length === 0
+        ? `New data added: ${names.join(', ')}.${noteClause} Replace all existing data with the new files provided, keeping the same visual structure, formatting, and style as the current visualization.`
+        : `New data added: ${names.join(', ')}.${noteClause} Please incorporate this into the existing visualization.`;
       await sendMessage(msg);
     }
     showToast(`Added ${files.length} file${files.length > 1 ? 's' : ''}`);
@@ -269,6 +510,9 @@ async function addFilesToDocument(files) {
 }
 
 function updateSourcesUI(newFileNames) {
+  // Dismiss stale-data banner once files are added
+  document.getElementById('stale-data-banner')?.remove();
+
   // Add chips to drawer
   const chipsContainer = sourcesDrawer?.querySelector('.flex');
   if (chipsContainer) {
@@ -299,12 +543,12 @@ function updateSourcesUI(newFileNames) {
 
 function setVisualization(html) {
   vizEmpty.classList.add('hidden');
-  if (canEdit) {
-    html = html.includes('</body>')
-      ? html.replace('</body>', DRAG_BRIDGE + '\n</body>')
-      : html + '\n' + DRAG_BRIDGE;
-  }
+  const extra = (canEdit ? DRAG_BRIDGE + '\n' : '') + COPY_BRIDGE + '\n' + CSV_BRIDGE;
+  html = html.includes('</body>')
+    ? html.replace('</body>', extra + '\n</body>')
+    : html + '\n' + extra;
   vizFrame.srcdoc = html;
+  document.getElementById('export-wrap')?.classList.remove('hidden');
 }
 
 function setLoading(active) {

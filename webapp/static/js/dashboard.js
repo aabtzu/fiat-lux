@@ -199,6 +199,12 @@ function buildCard(file) {
     </div>
     <div class="flex items-center gap-3">
       <a href="/view/${file.id}" class="text-sm text-blue-500 hover:text-blue-600 font-medium">Open</a>
+      <button class="duplicate-btn text-gray-300 hover:text-amber-400 transition" data-id="${file.id}" title="Duplicate (new data)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+      </button>
       <button class="delete-btn text-gray-300 hover:text-red-400 transition" data-id="${file.id}" title="Delete">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -237,6 +243,29 @@ fileList.addEventListener('click', async (e) => {
     showToast('File deleted');
   } catch (err) {
     showToast(err.message, 'error');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate (event delegation on file-list)
+// ---------------------------------------------------------------------------
+
+fileList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.duplicate-btn');
+  if (!btn) return;
+  const id = btn.dataset.id;
+
+  try {
+    btn.disabled = true;
+    const res = await fetch(`/api/files/${id}/duplicate`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    prependFileCard({ ...data, imported_at: new Date().toISOString() });
+    showToast('Duplicated — drop new files to replace data');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
   }
 });
 

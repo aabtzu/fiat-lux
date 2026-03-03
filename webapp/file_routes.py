@@ -36,6 +36,24 @@ def _save_text(user_id: str, text: str) -> str:
     return filename
 
 
+def _save_csv(user_id: str, records: list) -> str:
+    """Write table_data records to a .csv file. Returns the filename."""
+    import pandas as pd
+    filename = f'{_gen_id()}.csv'
+    pd.DataFrame(records).to_csv(
+        os.path.join(_user_imports_dir(user_id), filename), index=False
+    )
+    return filename
+
+
+def _save_bytes(user_id: str, data: bytes, ext: str) -> str:
+    """Save raw file bytes. Returns the filename (stored in DB)."""
+    filename = f'{_gen_id()}.{ext}'
+    with open(os.path.join(_user_imports_dir(user_id), filename), 'wb') as f:
+        f.write(data)
+    return filename
+
+
 def _read_text(user_id: str, filename: str) -> str:
     with open(os.path.join(_user_imports_dir(user_id), filename), encoding='utf-8') as f:
         return f.read()
@@ -78,6 +96,7 @@ def upload_files():
     display_name  = request.form.get('displayName', '').strip()
     document_id   = request.form.get('documentId', '').strip()
     initial_prompt = request.form.get('initialPrompt', '').strip()
+    is_style_ref  = request.form.get('isStyleRef', '').lower() in ('1', 'true')
 
     if not uploaded:
         return jsonify({'error': 'No files provided'}), 400
@@ -88,11 +107,15 @@ def upload_files():
             file_bytes = f.read()
             mime = f.mimetype or get_mime_type(f.filename)
             result = extract_document(file_bytes, mime, f.filename)
+            ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'bin'
+            td = result.get('table_data')
             extractions.append({
-                'text_file':    _save_text(user['id'], result['text']),
-                'file_type':    result['file_type'],
-                'original_name': f.filename,
-                'mime_type':    mime,
+                'text_file':          _save_text(user['id'], result['text']),
+                'file_type':          result['file_type'],
+                'original_name':      f.filename,
+                'mime_type':          mime,
+                'original_file_path': _save_bytes(user['id'], file_bytes, ext) if is_style_ref else None,
+                'csv_file_path':      _save_csv(user['id'], td) if td else None,
             })
 
         # Adding files to an existing document
@@ -102,9 +125,12 @@ def upload_files():
                 for e in extractions:
                     sf_id = _gen_id()
                     conn.execute(
-                        "INSERT INTO source_files (id, file_id, original_name, file_path, mime_type)"
-                        " VALUES (?,?,?,?,?)",
-                        (sf_id, document_id, e['original_name'], e['text_file'], e['mime_type']),
+                        "INSERT INTO source_files"
+                        " (id, file_id, original_name, file_path, mime_type,"
+                        "  is_style_ref, original_file_path, csv_file_path)"
+                        " VALUES (?,?,?,?,?,?,?,?)",
+                        (sf_id, document_id, e['original_name'], e['text_file'], e['mime_type'],
+                         1 if is_style_ref else 0, e['original_file_path'], e['csv_file_path']),
                     )
                     added.append({'id': sf_id, 'original_name': e['original_name']})
             return jsonify({'sourceFiles': added})
@@ -127,9 +153,11 @@ def upload_files():
             )
             for e in extractions:
                 conn.execute(
-                    "INSERT INTO source_files (id, file_id, original_name, file_path, mime_type)"
-                    " VALUES (?,?,?,?,?)",
-                    (_gen_id(), file_id, e['original_name'], e['text_file'], e['mime_type']),
+                    "INSERT INTO source_files"
+                    " (id, file_id, original_name, file_path, mime_type, csv_file_path)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (_gen_id(), file_id, e['original_name'], e['text_file'],
+                     e['mime_type'], e['csv_file_path']),
                 )
 
         return jsonify({
@@ -184,6 +212,40 @@ def rename_file(file_id):
     if cur.rowcount == 0:
         return jsonify({'error': 'File not found or access denied'}), 404
     return jsonify({'success': True})
+
+
+@file_bp.route('/api/files/<file_id>/duplicate', methods=['POST'])
+@requires_auth_api
+def duplicate_file(file_id):
+    """Create a copy of a visualization with no source files — for reuse with new data."""
+    user = get_current_user()
+    with db() as conn:
+        row = conn.execute(
+            "SELECT * FROM files WHERE id=? AND user_id=?",
+            (file_id, user['id'])
+        ).fetchone()
+        if not row:
+            return jsonify({'error': 'File not found or access denied'}), 404
+
+        file = dict(row)
+        new_id   = _gen_id()
+        new_name = file['display_name'] + ' (Copy)'
+
+        conn.execute(
+            "INSERT INTO files"
+            " (id, user_id, original_name, display_name, file_type,"
+            "  file_path, original_mime_type, visualization, chat_history, initial_prompt)"
+            " VALUES (?,?,?,?,?,?,?,?,NULL,NULL)",
+            (new_id, user['id'], file['original_name'], new_name, file['file_type'],
+             '', file.get('original_mime_type', ''), file.get('visualization')),
+        )
+
+    return jsonify({
+        'id':           new_id,
+        'display_name': new_name,
+        'file_type':    file['file_type'],
+        'original_name': file['original_name'],
+    })
 
 
 @file_bp.route('/api/files/<file_id>', methods=['DELETE'])
