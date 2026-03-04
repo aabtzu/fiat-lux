@@ -261,7 +261,8 @@ def chat(file_id):
 
     except Exception as e:
         current_app.logger.error('Chat error', exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        msg = str(e) if current_app.debug else 'Something went wrong generating the visualization. Please try again.'
+        return jsonify({'error': msg}), 500
 
 
 @view_bp.route('/api/export-python/<file_id>', methods=['POST'])

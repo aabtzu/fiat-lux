@@ -170,18 +170,22 @@ def upload_files():
 
     except anthropic.APIStatusError as e:
         current_app.logger.error('Claude API error during upload', exc_info=True)
-        return jsonify({'error': 'The AI service returned an error. Please try again.'}), 502
-    except anthropic.APIConnectionError:
+        msg = str(e) if current_app.debug else 'The AI service returned an error. Please try again.'
+        return jsonify({'error': msg}), 502
+    except anthropic.APIConnectionError as e:
         current_app.logger.error('Claude API connection error', exc_info=True)
-        return jsonify({'error': 'Could not reach the AI service. Check your connection and try again.'}), 502
+        msg = str(e) if current_app.debug else 'Could not reach the AI service. Check your connection and try again.'
+        return jsonify({'error': msg}), 502
     except RuntimeError as e:
+        current_app.logger.error('Upload runtime error', exc_info=True)
         if 'ANTHROPIC_API_KEY' in str(e):
             return jsonify({'error': 'Server configuration error: API key not set.'}), 500
-        current_app.logger.error('Upload runtime error', exc_info=True)
-        return jsonify({'error': 'Something went wrong processing your file. Please try again.'}), 500
+        msg = str(e) if current_app.debug else 'Something went wrong processing your file. Please try again.'
+        return jsonify({'error': msg}), 500
     except Exception as e:
         current_app.logger.error('Upload error', exc_info=True)
-        return jsonify({'error': 'Could not process the file. Make sure it\'s a supported format (PDF, Word, Excel, CSV, image, or text).'}), 500
+        msg = str(e) if current_app.debug else 'Could not process the file. Make sure it\'s a supported format (PDF, Word, Excel, CSV, image, or text).'
+        return jsonify({'error': msg}), 500
 
 
 @file_bp.route('/api/source-files/<sf_id>', methods=['DELETE'])
