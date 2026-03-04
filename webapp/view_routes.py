@@ -114,7 +114,8 @@ def _get_document_text(file, file_id):
 _REREAD_PATTERN = re.compile(
     r'\b(re-?read|original (data|document)|all (data|items)|missing data|'
     r'from the source|don\'t see|where is|repopulate|reload|start over|'
-    r'regenerate|raw data|the file)\b',
+    r'regenerate|raw data|the files?|read the|from the file|look at the file|'
+    r'in the file|check the file|use the file|source file)\b',
     re.IGNORECASE,
 )
 
