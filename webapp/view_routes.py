@@ -85,7 +85,9 @@ def _get_style_refs(file_id, user_id):
 
 
 def _get_document_text(file, file_id):
-    """Concatenate all source files in order. Prefers CSV over text when available.
+    """Concatenate all source files in order. Always uses full extracted text so
+    metadata (headers, provider names, etc.) is preserved. If a CSV was also
+    extracted, appends it so the structured rows are available too.
     Falls back to files.file_path for old records."""
     with db() as conn:
         rows = conn.execute(
@@ -94,13 +96,16 @@ def _get_document_text(file, file_id):
             (file_id,)
         ).fetchall()
     if rows:
-        def _best_path(sf):
-            # CSV is more compact and structured — Claude handles it better for tabular data
-            return sf['csv_file_path'] if sf['csv_file_path'] else sf['file_path']
+        def _full_content(sf):
+            text = _read_text(file['user_id'], sf['file_path'])
+            if sf['csv_file_path']:
+                csv = _read_text(file['user_id'], sf['csv_file_path'])
+                return f"{text}\n\n[Structured table data]\n{csv}"
+            return text
         if len(rows) == 1:
-            return _read_text(file['user_id'], _best_path(rows[0]))
+            return _full_content(rows[0])
         parts = [
-            f"=== {sf['original_name']} ===\n{_read_text(file['user_id'], _best_path(sf))}"
+            f"=== {sf['original_name']} ===\n{_full_content(sf)}"
             for sf in rows
         ]
         return '\n\n'.join(parts)
