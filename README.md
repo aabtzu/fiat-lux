@@ -4,6 +4,47 @@
 
 A visual document summarizer that sheds light on information that's otherwise hard to see. Upload documents and get interactive, AI-generated visualizations you can refine through natural conversation.
 
+<table>
+<tr>
+<td valign="top" width="40%">
+
+**Input** — raw text copied from a university portal
+
+```
+ASNS 1150
+East Asian Studies
+Snell Engineering Center 108
+Mon, Wed, Thu: 1:35 pm - 2:40 pm
+
+ARCH 1310
+Buildings and Cities, A Global History
+Richards Hall 300
+Tue, Fri: 9:50 am - 11:30 am
+
+ARCH 2240
+Architectonic Systems
+Ryder Hall 215
+Mon, Thu: 11:45 am - 1:25 pm
+
+ARCH 2130
+Site, Space, Program
+Architecture Studio 100
+Tue, Fri: 1:35 pm - 5:05 pm
+```
+
+</td>
+<td valign="top" width="60%">
+
+**Output** — interactive weekly calendar
+
+![Schedule example](docs/screenshots/schedule-before-after.png)
+
+</td>
+</tr>
+</table>
+
+→ [More examples](docs/examples.md)
+
 ## Features
 
 | Feature | Supported |

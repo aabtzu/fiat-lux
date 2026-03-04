@@ -116,11 +116,9 @@
     <h2 class="text-lg font-semibold text-gray-800">From raw text to visual</h2>
     <p class="text-sm text-gray-500 mt-0.5">Paste or upload unstructured data — Fiat Lux figures out the rest</p>
   </div>
-  <div class="grid grid-cols-2 divide-x divide-gray-100">
-    <!-- Raw input -->
-    <div class="px-6 py-5">
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Input — copied from a university portal</p>
-      <pre class="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap font-mono bg-gray-50 rounded-lg p-4">ASNS 1150
+  <div class="px-8 py-5">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Input — copied from a university portal</p>
+    <pre class="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap font-mono bg-gray-50 rounded-lg p-4">ASNS 1150
 East Asian Studies
 Snell Engineering Center 108
 Mon, Wed, Thu: 1:35 pm - 2:40 pm
@@ -149,17 +147,7 @@ ARCH 2130
 Site, Space, Program
 Architecture Studio 100
 Tue, Fri: 1:35 pm - 5:05 pm</pre>
-    </div>
-    <!-- Output -->
-    <div class="px-6 py-5">
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Output — interactive weekly calendar</p>
-      <div class="rounded-lg overflow-hidden border border-gray-100" style="height: 260px;">
-        <iframe src="{{ url_for('static', filename='examples/schedule.html') }}"
-                style="width:100%; height:100%; border:none; transform-origin:top left;"
-                scrolling="no"
-                title="Schedule output preview"></iframe>
-      </div>
-    </div>
+    <p class="text-xs text-gray-400 mt-3">↓ The interactive weekly calendar is shown below</p>
   </div>
 </div>
 
