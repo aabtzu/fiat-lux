@@ -240,6 +240,8 @@ def chat(file_id):
         else:
             current_app.logger.info('chat: full process path (Sonnet + document text)')
             text = _get_document_text(file, file_id)
+            if text:
+                text = f"[Content extracted from the user's uploaded source files]\n\n{text}"
             result = bot.process(text, message, style_refs=style_refs or None)
 
         new_html = result.get('html') or current_html or None
