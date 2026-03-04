@@ -37,7 +37,7 @@ Tue, Fri: 1:35 pm - 5:05 pm
 
 **Output** — interactive weekly calendar
 
-![Schedule example](docs/screenshots/schedule-before-after.png)
+![Schedule example](docs/screenshots/schedule-output.jpg)
 
 </td>
 </tr>

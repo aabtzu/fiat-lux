@@ -38,7 +38,7 @@ Tue, Fri: 1:35 pm - 5:05 pm
 
 Fiat Lux parses the course codes, titles, locations, and time slots — and generates an interactive weekly calendar:
 
-![Schedule before/after](screenshots/schedule-before-after.png)
+![Schedule output](screenshots/schedule-output.jpg)
 
 ---
 
