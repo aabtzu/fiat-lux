@@ -8,6 +8,7 @@ DELETE /api/files/<id>     — delete
 """
 
 import os
+import json
 import secrets
 import anthropic
 from flask import Blueprint, request, jsonify, current_app
@@ -16,6 +17,30 @@ from db import db
 from extractor import extract_document, get_mime_type
 
 file_bp = Blueprint('files', __name__)
+
+
+# ---------------------------------------------------------------------------
+# SQL
+# ---------------------------------------------------------------------------
+
+_SQL_INSERT_SOURCE_FILE_ADD = """
+    INSERT INTO source_files
+        (id, file_id, original_name, file_path, mime_type,
+         is_style_ref, original_file_path, csv_file_path, document_model, role)
+    VALUES (?,?,?,?,?,?,?,?,?,?)
+"""
+
+_SQL_INSERT_SOURCE_FILE_NEW = """
+    INSERT INTO source_files
+        (id, file_id, original_name, file_path, mime_type,
+         csv_file_path, document_model, role)
+    VALUES (?,?,?,?,?,?,?,?)
+"""
+
+_SQL_UPDATE_SOURCE_FILE_ROLE = """
+    UPDATE source_files SET role=?
+    WHERE id=? AND file_id IN (SELECT id FROM files WHERE user_id=?)
+"""
 
 
 def _gen_id() -> str:
@@ -102,6 +127,8 @@ def upload_files():
     if not uploaded:
         return jsonify({'error': 'No files provided'}), 400
 
+    role = request.form.get('role', 'lookup' if is_style_ref else 'data')
+
     try:
         extractions = []
         for f in uploaded:
@@ -110,6 +137,14 @@ def upload_files():
             result = extract_document(file_bytes, mime, f.filename)
             ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'bin'
             td = result.get('table_data')
+            md = result.get('metadata')
+            sm = result.get('summary')
+            model_json = json.dumps({
+                'document_type': result.get('file_type'),
+                'metadata':      md or {},
+                'records':       td or [],
+                'summary':       sm or {},
+            }) if (md or sm or td) else None
             extractions.append({
                 'text_file':          _save_text(user['id'], result['text']),
                 'file_type':          result['file_type'],
@@ -117,6 +152,7 @@ def upload_files():
                 'mime_type':          mime,
                 'original_file_path': _save_bytes(user['id'], file_bytes, ext) if is_style_ref else None,
                 'csv_file_path':      _save_csv(user['id'], td) if td else None,
+                'document_model':     model_json,
             })
 
         # Adding files to an existing document
@@ -126,14 +162,12 @@ def upload_files():
                 for e in extractions:
                     sf_id = _gen_id()
                     conn.execute(
-                        "INSERT INTO source_files"
-                        " (id, file_id, original_name, file_path, mime_type,"
-                        "  is_style_ref, original_file_path, csv_file_path)"
-                        " VALUES (?,?,?,?,?,?,?,?)",
+                        _SQL_INSERT_SOURCE_FILE_ADD,
                         (sf_id, document_id, e['original_name'], e['text_file'], e['mime_type'],
-                         1 if is_style_ref else 0, e['original_file_path'], e['csv_file_path']),
+                         1 if is_style_ref else 0, e['original_file_path'], e['csv_file_path'],
+                         e['document_model'], role),
                     )
-                    added.append({'id': sf_id, 'original_name': e['original_name']})
+                    added.append({'id': sf_id, 'original_name': e['original_name'], 'role': role})
             return jsonify({'sourceFiles': added})
 
         # source_files is the canonical list — no combined blob needed
@@ -154,11 +188,9 @@ def upload_files():
             )
             for e in extractions:
                 conn.execute(
-                    "INSERT INTO source_files"
-                    " (id, file_id, original_name, file_path, mime_type, csv_file_path)"
-                    " VALUES (?,?,?,?,?,?)",
+                    _SQL_INSERT_SOURCE_FILE_NEW,
                     (_gen_id(), file_id, e['original_name'], e['text_file'],
-                     e['mime_type'], e['csv_file_path']),
+                     e['mime_type'], e['csv_file_path'], e['document_model'], role),
                 )
 
         return jsonify({
@@ -186,6 +218,23 @@ def upload_files():
         current_app.logger.error('Upload error', exc_info=True)
         msg = str(e) if current_app.debug else 'Could not process the file. Make sure it\'s a supported format (PDF, Word, Excel, CSV, image, or text).'
         return jsonify({'error': msg}), 500
+
+
+@file_bp.route('/api/source-files/<sf_id>', methods=['PATCH'])
+@requires_auth_api
+def update_source_file(sf_id):
+    user = get_current_user()
+    data = request.get_json() or {}
+    new_role = data.get('role', '').strip()
+    valid_roles = ('data', 'lookup', 'style')
+    if new_role not in valid_roles:
+        return jsonify({'error': f'role must be one of: {", ".join(valid_roles)}'}), 400
+
+    with db() as conn:
+        cur = conn.execute(_SQL_UPDATE_SOURCE_FILE_ROLE, (new_role, sf_id, user['id']))
+    if cur.rowcount == 0:
+        return jsonify({'error': 'Not found or access denied'}), 404
+    return jsonify({'success': True, 'role': new_role})
 
 
 @file_bp.route('/api/source-files/<sf_id>', methods=['DELETE'])

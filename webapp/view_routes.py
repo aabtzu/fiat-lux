@@ -16,6 +16,34 @@ view_bp = Blueprint('view', __name__)
 
 
 # ---------------------------------------------------------------------------
+# SQL
+# ---------------------------------------------------------------------------
+
+_SQL_GET_SOURCE_FILES = """
+    SELECT id, original_name, mime_type, is_style_ref, role
+    FROM source_files
+    WHERE file_id = ?
+    ORDER BY added_at
+"""
+
+_SQL_GET_STYLE_REFS = """
+    SELECT sf.original_name, sf.mime_type, sf.original_file_path
+    FROM source_files sf
+    JOIN files f ON f.id = sf.file_id
+    WHERE sf.file_id = ? AND f.user_id = ? AND sf.is_style_ref = 1
+      AND sf.original_file_path IS NOT NULL
+    ORDER BY sf.added_at
+"""
+
+_SQL_GET_DOCUMENT_CONTEXT_FILES = """
+    SELECT original_name, file_path, csv_file_path, document_model, role
+    FROM source_files
+    WHERE file_id = ?
+    ORDER BY added_at
+"""
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -52,25 +80,14 @@ def _read_text(user_id, filename):
 def _get_source_files(file_id):
     """Return source file metadata for display (chips in header)."""
     with db() as conn:
-        rows = conn.execute(
-            "SELECT id, original_name, mime_type, is_style_ref FROM source_files"
-            " WHERE file_id = ? ORDER BY added_at",
-            (file_id,)
-        ).fetchall()
+        rows = conn.execute(_SQL_GET_SOURCE_FILES, (file_id,)).fetchall()
     return [dict(r) for r in rows]
 
 
 def _get_style_refs(file_id, user_id):
     """Return raw bytes for any style-reference source files."""
     with db() as conn:
-        rows = conn.execute(
-            "SELECT sf.original_name, sf.mime_type, sf.original_file_path"
-            " FROM source_files sf JOIN files f ON f.id = sf.file_id"
-            " WHERE sf.file_id = ? AND f.user_id = ? AND sf.is_style_ref = 1"
-            " AND sf.original_file_path IS NOT NULL"
-            " ORDER BY sf.added_at",
-            (file_id, user_id)
-        ).fetchall()
+        rows = conn.execute(_SQL_GET_STYLE_REFS, (file_id, user_id)).fetchall()
 
     refs = []
     data_dir = current_app.config['DATA_DIR']
@@ -84,35 +101,94 @@ def _get_style_refs(file_id, user_id):
     return refs
 
 
-def _get_document_text(file, file_id):
-    """Concatenate all source files in order. Always uses full extracted text so
-    metadata (headers, provider names, etc.) is preserved. If a CSV was also
-    extracted, appends it so the structured rows are available too.
-    Falls back to files.file_path for old records."""
+def _format_model_section(sf) -> str:
+    """Format a single source file's document model as labeled text."""
+    try:
+        model = json.loads(sf['document_model'])
+    except (TypeError, ValueError):
+        return None
+
+    lines = [f"=== {sf['original_name']} === [{sf.get('role') or 'data'}]"]
+    if model.get('document_type'):
+        lines.append(f"Document type: {model['document_type']}")
+
+    if model.get('metadata'):
+        lines.append("\nMetadata:")
+        for k, v in model['metadata'].items():
+            lines.append(f"  {k}: {v}")
+
+    if model.get('records'):
+        lines.append("\nRecords:")
+        # Format as CSV-style
+        import csv, io
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=model['records'][0].keys())
+        writer.writeheader()
+        writer.writerows(model['records'])
+        lines.append(buf.getvalue().strip())
+
+    if model.get('summary'):
+        lines.append("\nSummary:")
+        for k, v in model['summary'].items():
+            lines.append(f"  {k}: {v}")
+
+    return '\n'.join(lines)
+
+
+def _get_document_context(file, file_id):
+    """Build document context string for chat. Uses stored document_model when available,
+    with fallback to extracted text + CSV for old records without a model.
+    Groups lookup/reference files under a separate heading."""
     with db() as conn:
-        rows = conn.execute(
-            "SELECT original_name, file_path, csv_file_path FROM source_files"
-            " WHERE file_id = ? ORDER BY added_at",
-            (file_id,)
-        ).fetchall()
-    if rows:
-        def _full_content(sf):
-            text = _read_text(file['user_id'], sf['file_path'])
-            if sf['csv_file_path']:
-                csv = _read_text(file['user_id'], sf['csv_file_path'])
-                return f"{text}\n\n[Structured table data]\n{csv}"
-            return text
-        if len(rows) == 1:
-            return _full_content(rows[0])
-        parts = [
-            f"=== {sf['original_name']} ===\n{_full_content(sf)}"
-            for sf in rows
-        ]
-        return '\n\n'.join(parts)
-    # Fallback: old records with a combined file_path blob
-    if file.get('file_path'):
-        return _read_text(file['user_id'], file['file_path'])
-    return ''
+        rows = conn.execute(_SQL_GET_DOCUMENT_CONTEXT_FILES, (file_id,)).fetchall()
+
+    if not rows:
+        # Fallback: old records with a combined file_path blob
+        if file.get('file_path'):
+            return _read_text(file['user_id'], file['file_path'])
+        return ''
+
+    def _full_content_fallback(sf):
+        text = _read_text(file['user_id'], sf['file_path'])
+        if sf['csv_file_path']:
+            csv_text = _read_text(file['user_id'], sf['csv_file_path'])
+            return f"{text}\n\n[Structured table data]\n{csv_text}"
+        return text
+
+    data_parts = []
+    lookup_parts = []
+
+    for sf in rows:
+        role = sf['role'] or 'data'
+        if sf['document_model']:
+            section = _format_model_section(sf)
+        else:
+            # Fallback for old records without a model
+            content = _full_content_fallback(sf)
+            section = f"=== {sf['original_name']} === [{role}]\n{content}"
+
+        if role == 'lookup':
+            lookup_parts.append(section)
+        else:
+            data_parts.append(section)
+
+    parts = data_parts
+    if lookup_parts:
+        parts.append("--- Reference data ---\n" + '\n\n'.join(lookup_parts))
+
+    if len(parts) == 1 and not lookup_parts:
+        # Single data file: strip the === header for cleaner context
+        section = data_parts[0]
+        # Remove the first line (the === header) if it's a single file
+        lines = section.split('\n', 1)
+        return lines[1].strip() if len(lines) > 1 else section
+
+    return '\n\n'.join(parts)
+
+
+# Keep old name as alias for backward compatibility with any callers
+def _get_document_text(file, file_id):
+    return _get_document_context(file, file_id)
 
 
 
