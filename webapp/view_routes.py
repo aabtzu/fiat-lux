@@ -108,7 +108,7 @@ def _format_model_section(sf) -> str:
     except (TypeError, ValueError):
         return None
 
-    lines = [f"=== {sf['original_name']} === [{sf.get('role') or 'data'}]"]
+    lines = [f"=== {sf['original_name']} === [{sf['role'] or 'data'}]"]
     if model.get('document_type'):
         lines.append(f"Document type: {model['document_type']}")
 
