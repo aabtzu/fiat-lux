@@ -5,6 +5,8 @@ GET  /view/<file_id>       — view page (auth required)
 POST /api/chat/<file_id>   — generate or refine visualization via DocumentBot
 """
 
+import csv
+import io
 import json
 import os
 import re
@@ -20,7 +22,7 @@ view_bp = Blueprint('view', __name__)
 # ---------------------------------------------------------------------------
 
 _SQL_GET_SOURCE_FILES = """
-    SELECT id, original_name, mime_type, is_style_ref, role
+    SELECT id, original_name, mime_type, role
     FROM source_files
     WHERE file_id = ?
     ORDER BY added_at
@@ -30,7 +32,7 @@ _SQL_GET_STYLE_REFS = """
     SELECT sf.original_name, sf.mime_type, sf.original_file_path
     FROM source_files sf
     JOIN files f ON f.id = sf.file_id
-    WHERE sf.file_id = ? AND f.user_id = ? AND sf.is_style_ref = 1
+    WHERE sf.file_id = ? AND f.user_id = ? AND sf.role = 'style'
       AND sf.original_file_path IS NOT NULL
     ORDER BY sf.added_at
 """
@@ -101,11 +103,13 @@ def _get_style_refs(file_id, user_id):
     return refs
 
 
-def _format_model_section(sf) -> str:
-    """Format a single source file's document model as labeled text."""
+def _format_model_section(sf) -> str | None:
+    """Format a single source file's document model as labeled text.
+    Returns None if the model JSON is missing or unparseable."""
     try:
         model = json.loads(sf['document_model'])
     except (TypeError, ValueError):
+        current_app.logger.warning('Could not parse document_model for %s', sf.get('original_name'))
         return None
 
     lines = [f"=== {sf['original_name']} === [{sf['role'] or 'data'}]"]
@@ -117,14 +121,13 @@ def _format_model_section(sf) -> str:
         for k, v in model['metadata'].items():
             lines.append(f"  {k}: {v}")
 
-    if model.get('records'):
+    records = model.get('records')
+    if records and isinstance(records, list) and len(records) > 0 and isinstance(records[0], dict):
         lines.append("\nRecords:")
-        # Format as CSV-style
-        import csv, io
         buf = io.StringIO()
-        writer = csv.DictWriter(buf, fieldnames=model['records'][0].keys())
+        writer = csv.DictWriter(buf, fieldnames=records[0].keys())
         writer.writeheader()
-        writer.writerows(model['records'])
+        writer.writerows(records)
         lines.append(buf.getvalue().strip())
 
     if model.get('summary'):
@@ -160,10 +163,11 @@ def _get_document_context(file, file_id):
 
     for sf in rows:
         role = sf['role'] or 'data'
+        section = None
         if sf['document_model']:
             section = _format_model_section(sf)
-        else:
-            # Fallback for old records without a model
+        # Fall back to raw text if no model or model failed to parse
+        if section is None:
             content = _full_content_fallback(sf)
             section = f"=== {sf['original_name']} === [{role}]\n{content}"
 
@@ -267,7 +271,7 @@ def view_file(file_id):
         try:
             chat_history = json.loads(file['chat_history'])
         except Exception:
-            pass
+            current_app.logger.warning('Could not parse chat_history for file %s', file_id)
 
     return render_template('view.html',
         file=file,

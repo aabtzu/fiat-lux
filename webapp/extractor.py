@@ -11,10 +11,13 @@ Returns {'text': str, 'file_type': str}
 where file_type ∈ {'schedule', 'invoice', 'healthcare', 'unknown'}
 """
 
+import logging
 import os
 import re
 import json
 import base64
+
+logger = logging.getLogger(__name__)
 
 import anthropic
 
@@ -93,7 +96,7 @@ def _parse(text: str) -> dict:
                 'summary':    sm if isinstance(sm, dict) and sm else None,
             }
     except Exception:
-        pass
+        logger.warning('Failed to parse Claude extraction response', exc_info=True)
     return {'text': text, 'file_type': 'unknown', 'table_data': None, 'metadata': None, 'summary': None}
 
 

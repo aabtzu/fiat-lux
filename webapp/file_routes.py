@@ -26,15 +26,15 @@ file_bp = Blueprint('files', __name__)
 _SQL_INSERT_SOURCE_FILE_ADD = """
     INSERT INTO source_files
         (id, file_id, original_name, file_path, mime_type,
-         is_style_ref, original_file_path, csv_file_path, document_model, role)
-    VALUES (?,?,?,?,?,?,?,?,?,?)
+         original_file_path, document_model, role)
+    VALUES (?,?,?,?,?,?,?,?)
 """
 
 _SQL_INSERT_SOURCE_FILE_NEW = """
     INSERT INTO source_files
         (id, file_id, original_name, file_path, mime_type,
-         csv_file_path, document_model, role)
-    VALUES (?,?,?,?,?,?,?,?)
+         document_model, role)
+    VALUES (?,?,?,?,?,?,?)
 """
 
 _SQL_UPDATE_SOURCE_FILE_ROLE = """
@@ -61,15 +61,6 @@ def _save_text(user_id: str, text: str) -> str:
         f.write(text)
     return filename
 
-
-def _save_csv(user_id: str, records: list) -> str:
-    """Write table_data records to a .csv file. Returns the filename."""
-    import pandas as pd
-    filename = f'{_gen_id()}.csv'
-    pd.DataFrame(records).to_csv(
-        os.path.join(_user_imports_dir(user_id), filename), index=False
-    )
-    return filename
 
 
 def _save_bytes(user_id: str, data: bytes, ext: str) -> str:
@@ -127,7 +118,7 @@ def upload_files():
     if not uploaded:
         return jsonify({'error': 'No files provided'}), 400
 
-    role = request.form.get('role', 'lookup' if is_style_ref else 'data')
+    role = request.form.get('role', 'style' if is_style_ref else 'data')
 
     try:
         extractions = []
@@ -151,7 +142,6 @@ def upload_files():
                 'original_name':      f.filename,
                 'mime_type':          mime,
                 'original_file_path': _save_bytes(user['id'], file_bytes, ext) if is_style_ref else None,
-                'csv_file_path':      _save_csv(user['id'], td) if td else None,
                 'document_model':     model_json,
             })
 
@@ -164,8 +154,7 @@ def upload_files():
                     conn.execute(
                         _SQL_INSERT_SOURCE_FILE_ADD,
                         (sf_id, document_id, e['original_name'], e['text_file'], e['mime_type'],
-                         1 if is_style_ref else 0, e['original_file_path'], e['csv_file_path'],
-                         e['document_model'], role),
+                         e['original_file_path'], e['document_model'], role),
                     )
                     added.append({'id': sf_id, 'original_name': e['original_name'], 'role': role})
             return jsonify({'sourceFiles': added})
@@ -190,7 +179,7 @@ def upload_files():
                 conn.execute(
                     _SQL_INSERT_SOURCE_FILE_NEW,
                     (_gen_id(), file_id, e['original_name'], e['text_file'],
-                     e['mime_type'], e['csv_file_path'], e['document_model'], role),
+                     e['mime_type'], e['document_model'], role),
                 )
 
         return jsonify({
