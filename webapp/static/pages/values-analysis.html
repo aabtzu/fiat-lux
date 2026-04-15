@@ -215,6 +215,78 @@ main {
   white-space: nowrap;
 }
 
+/* ---- Mobile ---- */
+
+@media (max-width: 768px) {
+  header {
+    padding: 16px;
+  }
+
+  header h1 {
+    font-size: 17px;
+  }
+
+  header .subtitle {
+    font-size: 12px;
+  }
+
+  main {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  /* Stack all rows vertically */
+  .row {
+    flex-direction: column;
+  }
+
+  /* Remove fixed flex ratios when stacked */
+  .row--main .panel--large,
+  .row--main .panel--small {
+    flex: none;
+    width: 100%;
+  }
+
+  /* Stack combined bottom panel */
+  .panel--combined {
+    flex-direction: column;
+  }
+
+  .combined-divider {
+    width: 100%;
+    height: 1px;
+    margin: 16px 0;
+  }
+
+  .panel {
+    padding: 14px 14px 12px;
+  }
+
+  .panel h2 {
+    flex-wrap: wrap;
+    font-size: 13px;
+    gap: 6px;
+  }
+
+  /* Shorter charts on mobile */
+  .chart {
+    height: 320px;
+  }
+
+  #panel-central .chart {
+    height: 280px;
+  }
+
+  #shared-content {
+    max-height: 280px;
+  }
+
+  .cluster-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}
+
 /* ---- Scrollbar (webkit) ---- */
 
 #shared-content::-webkit-scrollbar {
@@ -418,21 +490,20 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
     const xRange = [Math.min(...allX) - pad, Math.max(...allX) + pad];
     const yRange = [Math.min(...allY) - pad, Math.max(...allY) + pad];
 
+    const mobile = window.innerWidth < 768;
+
     const layout = {
       font: { family: "'Inter', 'Helvetica Neue', Arial, sans-serif", size: 12 },
       paper_bgcolor: '#ffffff',
       plot_bgcolor: '#ffffff',
-      legend: {
-        orientation: 'v',
-        x: 1.02,
-        xanchor: 'left',
-        y: 1,
-        font: { size: 11 },
-        tracegroupgap: 14,
-      },
+      legend: mobile
+        ? { orientation: 'h', x: 0, y: -0.12, font: { size: 10 }, tracegroupgap: 6 }
+        : { orientation: 'v', x: 1.02, xanchor: 'left', y: 1, font: { size: 11 }, tracegroupgap: 14 },
       xaxis: { showticklabels: false, showgrid: false, zeroline: false, range: xRange, autorange: false },
       yaxis: { showticklabels: false, showgrid: false, zeroline: false, range: yRange, autorange: false },
-      margin: { t: 10, r: 170, b: 32, l: 16 },
+      margin: mobile
+        ? { t: 10, r: 10, b: 100, l: 10 }
+        : { t: 10, r: 170, b: 32, l: 16 },
       annotations: [
         {
           text: 'Click legend items to show/hide  ·  double-click to isolate',
@@ -612,13 +683,16 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
       hovertemplate: '%{y} ↔ %{x}<br>Similarity: %{z:.3f}<extra></extra>',
     };
 
+    const hmMobile = window.innerWidth < 768;
     const layout = {
       font: { family: "'Inter', 'Helvetica Neue', Arial, sans-serif", size: 12 },
       paper_bgcolor: '#ffffff',
       plot_bgcolor: '#ffffff',
-      margin: { t: 10, r: 16, b: 80, l: 80 },
-      xaxis: { tickangle: -35, tickfont: { size: 11 } },
-      yaxis: { tickfont: { size: 11 } },
+      margin: hmMobile
+        ? { t: 10, r: 10, b: 60, l: 60 }
+        : { t: 10, r: 16, b: 80, l: 80 },
+      xaxis: { tickangle: -35, tickfont: { size: hmMobile ? 9 : 11 } },
+      yaxis: { tickfont: { size: hmMobile ? 9 : 11 } },
     };
 
     Plotly.newPlot('chart-heatmap', [trace], layout, PLOTLY_CONFIG);
