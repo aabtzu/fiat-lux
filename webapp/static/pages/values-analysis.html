@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Values Analysis</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+/* -----------------------------------------------------------------------
+   Values Analysis — stylesheet
+   No gradients. Solid colors only.
+----------------------------------------------------------------------- */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  background: #f4f5f7;
+  color: #1a1a2e;
+  min-height: 100vh;
+}
+
+/* ---- Header ---- */
+
+header {
+  background: #1a1a2e;
+  color: #ffffff;
+  padding: 24px 32px;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+header .subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #a0a8c0;
+}
+
+/* ---- Layout ---- */
+
+main {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.row {
+  display: flex;
+  gap: 20px;
+}
+
+.row--main .panel--large  { flex: 3; }
+.row--main .panel--small  { flex: 2; }
+
+/* combined bottom panel is a direct child of main, not a row */
+
+/* ---- Panels ---- */
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #e2e6ea;
+  border-radius: 8px;
+  padding: 20px 20px 16px;
+  min-width: 0;           /* prevent flex overflow */
+}
+
+.panel h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.panel-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #8892a4;
+}
+
+.cluster-badge {
+  display: inline-block;
+  background: #1a1a2e;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+.show-all-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid #d0d5dc;
+  border-radius: 4px;
+  color: #8892a4;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 3px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.show-all-btn:hover {
+  background: #f4f5f7;
+  color: #1a1a2e;
+  border-color: #b0b8c4;
+}
+
+.filter-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #4a4a6e;
+  background: #eef0f8;
+  border-left: 3px solid #7b8dc4;
+  padding: 5px 10px;
+  border-radius: 0 4px 4px 0;
+}
+
+/* ---- Combined bottom panel ---- */
+
+.panel--combined {
+  display: flex;
+  gap: 0;
+  min-width: 0;
+}
+
+.combined-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.combined-divider {
+  width: 1px;
+  background: #e2e6ea;
+  margin: 0 24px;
+  flex-shrink: 0;
+}
+
+/* ---- Charts ---- */
+
+.chart {
+  width: 100%;
+  height: 420px;
+}
+
+#panel-central .chart {
+  height: 360px;
+}
+
+/* ---- Shared values section ---- */
+
+#shared-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  max-height: 360px;
+}
+
+.shared-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.shared-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.shared-item .words {
+  font-weight: 600;
+  color: #1a1a2e;
+  flex: 1;
+}
+
+.shared-item .people-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.person-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.shared-item .sim-badge {
+  font-size: 11px;
+  color: #8892a4;
+  white-space: nowrap;
+}
+
+/* ---- Scrollbar (webkit) ---- */
+
+#shared-content::-webkit-scrollbar {
+  width: 5px;
+}
+#shared-content::-webkit-scrollbar-track {
+  background: #f4f5f7;
+}
+#shared-content::-webkit-scrollbar-thumb {
+  background: #d0d5dc;
+  border-radius: 3px;
+}
+
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Team Values — Embeddings &amp; Clustering</h1>
+    <p class="subtitle">Each value embedded individually · K-means clustering · Person similarity via centroid distance</p>
+  </header>
+
+  <main>
+    <!-- Row 1: word scatter + person heatmap -->
+    <div class="row row--main">
+      <section class="panel panel--large" id="panel-scatter">
+        <h2>
+          Value Word Map
+          <span class="cluster-badge">5 clusters identified</span>
+          <span class="panel-hint">◆ = cluster center · ★ = person</span>
+          <button id="show-all-btn" class="show-all-btn" hidden>show all</button>
+        </h2>
+        <div id="chart-scatter" class="chart"></div>
+        <p id="filter-hint" class="filter-hint" hidden></p>
+      </section>
+
+      <section class="panel panel--small" id="panel-heatmap">
+        <h2>Person Similarity</h2>
+        <div id="chart-heatmap" class="chart"></div>
+      </section>
+    </div>
+
+    <!-- Row 2: combined panel -->
+    <section class="panel panel--combined">
+      <div class="combined-col" id="panel-central">
+        <h2>Most Universal Values <span class="panel-hint">avg. resonance across all people</span></h2>
+        <div id="chart-central" class="chart"></div>
+      </div>
+      <div class="combined-divider"></div>
+      <div class="combined-col" id="panel-shared">
+        <h2>Shared Values</h2>
+        <div id="shared-content"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Data injected by generate.py -->
+  <script>
+window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "Laughter", "Resilience", "Humility"], "Vam": ["Reliability", "Responsibility", "Consistency", "Compassion", "Bliss"], "Chaitanya": ["Integrity", "Empathy", "Curiosity", "Kindness", "Responsibility", "Growth Mindset"], "Amit": ["Teaching", "Generosity", "Forgiveness", "Acceptance", "Patience"], "Hira": ["Growth", "Commitment", "Community", "Balance", "Giving"]}, "person_colors": {"Dhaarmika": "#E84B3C", "Vam": "#4A90D9", "Chaitanya": "#2ECC71", "Amit": "#F39C12", "Hira": "#9B59B6"}, "cluster_colors": ["#4A90D9", "#E84B3C", "#2ECC71", "#F39C12", "#9B59B6"], "words": [{"word": "Acceptance", "people": ["Amit"], "cluster": 1, "cluster_name": "Commitment", "x": 0.7102050185203552, "y": 0.994499146938324}, {"word": "Balance", "people": ["Hira"], "cluster": 1, "cluster_name": "Commitment", "x": -0.3034318685531616, "y": 0.8351718783378601}, {"word": "Bliss", "people": ["Vam"], "cluster": 3, "cluster_name": "Joy", "x": 3.7212634086608887, "y": -0.2774079442024231}, {"word": "Commitment", "people": ["Hira"], "cluster": 1, "cluster_name": "Commitment", "x": 0.3010574281215668, "y": 0.825218141078949}, {"word": "Community", "people": ["Hira"], "cluster": 3, "cluster_name": "Joy", "x": 0.6425490975379944, "y": 0.1230928972363472}, {"word": "Compassion", "people": ["Vam"], "cluster": 0, "cluster_name": "Compassion", "x": 1.6079161167144775, "y": -0.5596269369125366}, {"word": "Consistency", "people": ["Vam"], "cluster": 4, "cluster_name": "Reliability", "x": 3.1297836303710938, "y": 1.3136001825332642}, {"word": "Curiosity", "people": ["Dhaarmika", "Chaitanya"], "cluster": 3, "cluster_name": "Joy", "x": 2.7618753910064697, "y": -0.29757165908813477}, {"word": "Empathy", "people": ["Chaitanya"], "cluster": 0, "cluster_name": "Compassion", "x": 1.7429262399673462, "y": -0.8050072193145752}, {"word": "Forgiveness", "people": ["Amit"], "cluster": 0, "cluster_name": "Compassion", "x": 2.0948293209075928, "y": 0.6337416172027588}, {"word": "Generosity", "people": ["Amit"], "cluster": 0, "cluster_name": "Compassion", "x": 0.5310083627700806, "y": 1.6757774353027344}, {"word": "Giving", "people": ["Hira"], "cluster": 1, "cluster_name": "Commitment", "x": 0.05397680401802063, "y": 1.522010087966919}, {"word": "Growth", "people": ["Hira"], "cluster": 2, "cluster_name": "Growth Mindset", "x": -0.37444761395454407, "y": -0.011418834328651428}, {"word": "Growth Mindset", "people": ["Chaitanya"], "cluster": 2, "cluster_name": "Growth Mindset", "x": 0.0873812809586525, "y": -0.462421715259552}, {"word": "Humility", "people": ["Dhaarmika"], "cluster": 0, "cluster_name": "Compassion", "x": 2.247511625289917, "y": -0.2885454297065735}, {"word": "Integrity", "people": ["Chaitanya"], "cluster": 4, "cluster_name": "Reliability", "x": 2.61930513381958, "y": 0.9625157713890076}, {"word": "Joy", "people": ["Dhaarmika"], "cluster": 3, "cluster_name": "Joy", "x": 3.5270602703094482, "y": -1.1104670763015747}, {"word": "Kindness", "people": ["Dhaarmika", "Chaitanya"], "cluster": 0, "cluster_name": "Compassion", "x": 1.405704379081726, "y": -0.23037970066070557}, {"word": "Laughter", "people": ["Dhaarmika"], "cluster": 3, "cluster_name": "Joy", "x": 2.9836387634277344, "y": -1.400057077407837}, {"word": "Patience", "people": ["Amit"], "cluster": 1, "cluster_name": "Commitment", "x": 1.9328361749649048, "y": 1.6061739921569824}, {"word": "Reliability", "people": ["Vam"], "cluster": 4, "cluster_name": "Reliability", "x": 3.4195635318756104, "y": 0.8877564668655396}, {"word": "Resilience", "people": ["Dhaarmika"], "cluster": 4, "cluster_name": "Reliability", "x": 3.2019169330596924, "y": -0.38374659419059753}, {"word": "Responsibility", "people": ["Vam", "Chaitanya"], "cluster": 1, "cluster_name": "Commitment", "x": 2.0262937545776367, "y": 0.951675534248352}, {"word": "Teaching", "people": ["Amit"], "cluster": 2, "cluster_name": "Growth Mindset", "x": 1.2448694705963135, "y": 1.3458690643310547}], "clusters": [{"id": 0, "name": "Compassion", "color": "#4A90D9", "words": ["Compassion", "Empathy", "Forgiveness", "Generosity", "Humility", "Kindness"]}, {"id": 1, "name": "Commitment", "color": "#E84B3C", "words": ["Acceptance", "Balance", "Commitment", "Giving", "Patience", "Responsibility"]}, {"id": 2, "name": "Growth Mindset", "color": "#2ECC71", "words": ["Growth", "Growth Mindset", "Teaching"]}, {"id": 3, "name": "Joy", "color": "#F39C12", "words": ["Bliss", "Community", "Curiosity", "Joy", "Laughter"]}, {"id": 4, "name": "Reliability", "color": "#9B59B6", "words": ["Consistency", "Integrity", "Reliability", "Resilience"]}], "person_similarity": {"Dhaarmika": {"Dhaarmika": 1.000000238418579, "Vam": 0.708219587802887, "Chaitanya": 0.8131177425384521, "Amit": 0.7057494521141052, "Hira": 0.6402340531349182}, "Vam": {"Dhaarmika": 0.708219587802887, "Vam": 0.9999998807907104, "Chaitanya": 0.7852933406829834, "Amit": 0.678780198097229, "Hira": 0.6140264868736267}, "Chaitanya": {"Dhaarmika": 0.8131177425384521, "Vam": 0.7852933406829834, "Chaitanya": 1.0000001192092896, "Amit": 0.7419697046279907, "Hira": 0.7074078321456909}, "Amit": {"Dhaarmika": 0.7057494521141052, "Vam": 0.678780198097229, "Chaitanya": 0.7419697046279907, "Amit": 0.9999998807907104, "Hira": 0.7542386054992676}, "Hira": {"Dhaarmika": 0.6402340531349182, "Vam": 0.6140264868736267, "Chaitanya": 0.7074078321456909, "Amit": 0.7542386054992676, "Hira": 0.9999999403953552}}, "person_coords": {"Dhaarmika": {"x": 2.602818489074707, "y": -0.8221375942230225}, "Vam": {"x": 3.0183863639831543, "y": 0.41390460729599}, "Chaitanya": {"x": 1.7384778261184692, "y": 0.13192372024059296}, "Amit": {"x": 1.176146149635315, "y": 0.6627925634384155}, "Hira": {"x": -0.5029424428939819, "y": 1.211173176765442}}, "shared_values": {"exact": [{"word": "Kindness", "people": ["Chaitanya", "Dhaarmika"]}, {"word": "Curiosity", "people": ["Chaitanya", "Dhaarmika"]}, {"word": "Responsibility", "people": ["Chaitanya", "Vam"]}], "semantic": [{"words": ["Growth", "Growth Mindset"], "people": ["Chaitanya", "Hira"], "similarity": 0.706}, {"words": ["Compassion", "Empathy"], "people": ["Chaitanya", "Vam"], "similarity": 0.68}, {"words": ["Generosity", "Giving"], "people": ["Amit", "Hira"], "similarity": 0.667}]}, "central_values": [{"word": "Generosity", "similarity_to_centroid": 0.619}, {"word": "Compassion", "similarity_to_centroid": 0.6087}, {"word": "Kindness", "similarity_to_centroid": 0.605}, {"word": "Empathy", "similarity_to_centroid": 0.6045}, {"word": "Responsibility", "similarity_to_centroid": 0.57}, {"word": "Humility", "similarity_to_centroid": 0.5686}, {"word": "Patience", "similarity_to_centroid": 0.5545}, {"word": "Commitment", "similarity_to_centroid": 0.5449}, {"word": "Integrity", "similarity_to_centroid": 0.5432}, {"word": "Giving", "similarity_to_centroid": 0.534}, {"word": "Community", "similarity_to_centroid": 0.5247}, {"word": "Forgiveness", "similarity_to_centroid": 0.515}, {"word": "Resilience", "similarity_to_centroid": 0.5131}, {"word": "Acceptance", "similarity_to_centroid": 0.5117}, {"word": "Curiosity", "similarity_to_centroid": 0.5095}, {"word": "Joy", "similarity_to_centroid": 0.5079}, {"word": "Laughter", "similarity_to_centroid": 0.4955}, {"word": "Balance", "similarity_to_centroid": 0.4725}, {"word": "Reliability", "similarity_to_centroid": 0.4583}, {"word": "Growth", "similarity_to_centroid": 0.4467}, {"word": "Bliss", "similarity_to_centroid": 0.4259}, {"word": "Teaching", "similarity_to_centroid": 0.4211}, {"word": "Consistency", "similarity_to_centroid": 0.4103}, {"word": "Growth Mindset", "similarity_to_centroid": 0.409}]};
+
+  </script>
+  <script>
+/**
+ * charts.js
+ * Reads window.VALUES_DATA (written by generate.py → data/values.js)
+ * and renders all four panels using Plotly.
+ */
+
+(function () {
+  'use strict';
+
+  const PLOTLY_CONFIG = { responsive: true, displayModeBar: false };
+
+  // Module-level state for the scatter filter
+  let _data = null;
+  let _selectedPerson = null;
+  let _selectedCluster = null;   // index into data.clusters, or null
+  let _nClusters = 0;
+  let _personStartIdx = 0;  // trace index where person traces begin
+
+  // -------------------------------------------------------------------------
+  // Utils
+  // -------------------------------------------------------------------------
+
+  function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  // -------------------------------------------------------------------------
+  // Word scatter
+  // Trace layout:
+  //   [0 … N_CLUSTERS-1] : per-cluster word traces
+  //   [N_CLUSTERS]        : cluster-center diamonds (showlegend: false)
+  //   [N_CLUSTERS+1 …]    : one star trace per person
+  // -------------------------------------------------------------------------
+
+  function buildScatterTraces(data) {
+    const traces = [];
+
+    // --- Cluster word traces ---
+    data.clusters.forEach((cluster, i) => {
+      const words = data.words.filter((w) => w.cluster === cluster.id);
+      traces.push({
+        type: 'scatter',
+        mode: 'markers+text',
+        name: cluster.name,
+        legendgroup: 'clusters',
+        legendgrouptitle: i === 0 ? { text: 'Value Clusters' } : undefined,
+        x: words.map((w) => w.x),
+        y: words.map((w) => w.y),
+        text: words.map((w) => w.word),
+        textposition: 'top center',
+        textfont: { size: 11, color: '#1a1a2e' },
+        marker: {
+          color: cluster.color,
+          size: 11,
+          symbol: 'circle',
+          line: { color: '#ffffff', width: 1.5 },
+        },
+        customdata: words.map((w) => [w.people.join(', '), cluster.name]),
+        hovertemplate:
+          '<b>%{text}</b><br>People: %{customdata[0]}<br>Cluster: %{customdata[1]}<extra></extra>',
+      });
+    });
+
+    // --- Cluster centers: large diamonds ---
+    const centers = data.clusters.map((cluster) => {
+      const words = data.words.filter((w) => w.cluster === cluster.id);
+      return {
+        name: cluster.name,
+        color: cluster.color,
+        cx: words.reduce((s, w) => s + w.x, 0) / words.length,
+        cy: words.reduce((s, w) => s + w.y, 0) / words.length,
+        wordList: words.map((w) => w.word).join(', '),
+      };
+    });
+
+    traces.push({
+      type: 'scatter',
+      mode: 'markers',
+      name: 'Cluster centers',
+      legendgroup: 'clusters',
+      showlegend: false,
+      x: centers.map((c) => c.cx),
+      y: centers.map((c) => c.cy),
+      text: centers.map((c) => c.name),
+      marker: {
+        color: centers.map((c) => c.color),
+        size: 20,
+        symbol: 'diamond',
+        line: { color: '#1a1a2e', width: 2 },
+        opacity: 1,
+      },
+      customdata: centers.map((c) => c.wordList),
+      hovertemplate:
+        '<b>%{text}</b> (cluster center)<br>%{customdata}<extra></extra>',
+    });
+
+    // --- Per-person star traces (separate so hover + click work per person) ---
+    const persons = Object.keys(data.people);
+    persons.forEach((person, i) => {
+      traces.push({
+        type: 'scatter',
+        mode: 'markers+text',
+        name: person,
+        legendgroup: 'people',
+        legendgrouptitle: i === 0 ? { text: 'People' } : undefined,
+        x: [data.person_coords[person].x],
+        y: [data.person_coords[person].y],
+        text: [person],
+        textposition: 'bottom center',
+        textfont: { size: 12, color: '#1a1a2e' },
+        marker: {
+          color: data.person_colors[person],
+          size: 20,
+          symbol: 'star',
+          line: { color: '#ffffff', width: 2 },
+        },
+        // customdata is a flat string — use %{customdata} not %{customdata[0]}
+        customdata: [data.people[person].join('<br>')],
+        hovertemplate: '<b>%{text}</b><br>%{customdata}<extra></extra>',
+      });
+    });
+
+    return traces;
+  }
+
+  function renderWordScatter(data) {
+    _data = data;
+    _nClusters = data.clusters.length;
+    _personStartIdx = _nClusters + 1;  // +1 for the cluster-centers trace
+
+    const traces = buildScatterTraces(data);
+
+    // Lock axis ranges so toggling traces doesn't cause Plotly to re-scale
+    const pad = 0.06;
+    const allX = [...data.words.map((w) => w.x), ...Object.values(data.person_coords).map((p) => p.x)];
+    const allY = [...data.words.map((w) => w.y), ...Object.values(data.person_coords).map((p) => p.y)];
+    const xRange = [Math.min(...allX) - pad, Math.max(...allX) + pad];
+    const yRange = [Math.min(...allY) - pad, Math.max(...allY) + pad];
+
+    const layout = {
+      font: { family: "'Inter', 'Helvetica Neue', Arial, sans-serif", size: 12 },
+      paper_bgcolor: '#ffffff',
+      plot_bgcolor: '#ffffff',
+      legend: {
+        orientation: 'v',
+        x: 1.02,
+        xanchor: 'left',
+        y: 1,
+        font: { size: 11 },
+        tracegroupgap: 14,
+      },
+      xaxis: { showticklabels: false, showgrid: false, zeroline: false, range: xRange, autorange: false },
+      yaxis: { showticklabels: false, showgrid: false, zeroline: false, range: yRange, autorange: false },
+      margin: { t: 10, r: 170, b: 32, l: 16 },
+      annotations: [
+        {
+          text: 'Click legend items to show/hide  ·  double-click to isolate',
+          x: 0,
+          xanchor: 'left',
+          y: -0.03,
+          yanchor: 'top',
+          xref: 'paper',
+          yref: 'paper',
+          showarrow: false,
+          font: { size: 10, color: '#8892a4' },
+        },
+      ],
+    };
+
+    Plotly.newPlot('chart-scatter', traces, layout, PLOTLY_CONFIG).then(() => {
+      document.getElementById('chart-scatter').on('plotly_click', handleScatterClick);
+      document.getElementById('show-all-btn').addEventListener('click', resetFilter);
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Filter helpers
+  // -------------------------------------------------------------------------
+
+  function setHint(text) {
+    const hint = document.getElementById('filter-hint');
+    const btn  = document.getElementById('show-all-btn');
+    if (hint) { hint.textContent = text; hint.hidden = false; }
+    if (btn)  btn.hidden = false;
+  }
+
+  function clearHint() {
+    const hint = document.getElementById('filter-hint');
+    const btn  = document.getElementById('show-all-btn');
+    if (hint) hint.hidden = true;
+    if (btn)  btn.hidden = true;
+  }
+
+  function restoreWordTraces() {
+    _data.clusters.forEach((cluster, i) => {
+      const words = _data.words.filter((w) => w.cluster === cluster.id);
+      Plotly.restyle(
+        'chart-scatter',
+        { 'marker.color': [cluster.color], text: [words.map((w) => w.word)] },
+        [i]
+      );
+    });
+  }
+
+  function restorePersonTraces() {
+    const persons = Object.keys(_data.people);
+    persons.forEach((_, i) => {
+      Plotly.restyle(
+        'chart-scatter',
+        { 'marker.size': [20], 'marker.opacity': [1] },
+        [_personStartIdx + i]
+      );
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Click dispatch
+  // -------------------------------------------------------------------------
+
+  function handleScatterClick(event) {
+    const pt        = event.points[0];
+    const traceIdx  = pt.curveNumber;
+    const traceName = pt.data.name;
+    const persons   = Object.keys(_data.people);
+
+    if (traceIdx === _nClusters) {
+      // Clicked a cluster center ◆
+      const idx = pt.pointIndex;
+      if (_selectedCluster === idx) { resetFilter(); } else { applyClusterFilter(idx); }
+      return;
+    }
+
+    if (persons.includes(traceName)) {
+      // Clicked a person ★
+      if (_selectedPerson === traceName) { resetFilter(); } else { applyPersonFilter(traceName); }
+      return;
+    }
+
+    // Clicked a word dot — reset
+    if (_selectedPerson !== null || _selectedCluster !== null) resetFilter();
+  }
+
+  // -------------------------------------------------------------------------
+  // Cluster filter
+  // -------------------------------------------------------------------------
+
+  function applyClusterFilter(clusterIdx) {
+    _selectedCluster = clusterIdx;
+    _selectedPerson  = null;
+
+    _data.clusters.forEach((cluster, i) => {
+      const words = _data.words.filter((w) => w.cluster === cluster.id);
+      if (i === clusterIdx) {
+        Plotly.restyle('chart-scatter',
+          { 'marker.color': [cluster.color], text: [words.map((w) => w.word)] }, [i]);
+      } else {
+        Plotly.restyle('chart-scatter',
+          { 'marker.color': [words.map(() => hexToRgba(cluster.color, 0.08))], text: [words.map(() => '')] }, [i]);
+      }
+    });
+
+    restorePersonTraces();
+    setHint(`Cluster: ${_data.clusters[clusterIdx].name} · click ◆ again to reset`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Person filter
+  // -------------------------------------------------------------------------
+
+  function applyPersonFilter(person) {
+    _selectedPerson  = person;
+    _selectedCluster = null;
+
+    _data.clusters.forEach((cluster, i) => {
+      const words  = _data.words.filter((w) => w.cluster === cluster.id);
+      const colors = words.map((w) =>
+        w.people.includes(person) ? cluster.color : hexToRgba(cluster.color, 0.08)
+      );
+      const labels = words.map((w) => (w.people.includes(person) ? w.word : ''));
+      Plotly.restyle('chart-scatter', { 'marker.color': [colors], text: [labels] }, [i]);
+    });
+
+    const persons = Object.keys(_data.people);
+    persons.forEach((p, i) => {
+      const sel = p === person;
+      Plotly.restyle('chart-scatter',
+        { 'marker.size': [sel ? 28 : 14], 'marker.opacity': [sel ? 1 : 0.2] },
+        [_personStartIdx + i]
+      );
+    });
+
+    setHint(`${person}'s values · click ★ again to reset`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Reset
+  // -------------------------------------------------------------------------
+
+  function resetFilter() {
+    _selectedPerson  = null;
+    _selectedCluster = null;
+    restoreWordTraces();
+    restorePersonTraces();
+    clearHint();
+  }
+
+  // -------------------------------------------------------------------------
+  // Person similarity heatmap — colorful but muted
+  // -------------------------------------------------------------------------
+
+  function renderPersonHeatmap(data) {
+    const persons = Object.keys(data.person_similarity);
+    const z = persons.map((p1) => persons.map((p2) => data.person_similarity[p1][p2]));
+    const trace = {
+      type: 'heatmap',
+      z,
+      x: persons,
+      y: persons,
+      colorscale: [
+        [0,    '#f5ede0'],
+        [0.25, '#d4a07a'],
+        [0.55, '#7aaec8'],
+        [1,    '#2d5986'],
+      ],
+      zmin: 0.5,
+      zmax: 1.0,
+      showscale: false,
+      text: z.map((row) => row.map((v) => v.toFixed(2))),
+      texttemplate: '%{text}',
+      textfont: { size: 11 },
+      hovertemplate: '%{y} ↔ %{x}<br>Similarity: %{z:.3f}<extra></extra>',
+    };
+
+    const layout = {
+      font: { family: "'Inter', 'Helvetica Neue', Arial, sans-serif", size: 12 },
+      paper_bgcolor: '#ffffff',
+      plot_bgcolor: '#ffffff',
+      margin: { t: 10, r: 16, b: 80, l: 80 },
+      xaxis: { tickangle: -35, tickfont: { size: 11 } },
+      yaxis: { tickfont: { size: 11 } },
+    };
+
+    Plotly.newPlot('chart-heatmap', [trace], layout, PLOTLY_CONFIG);
+  }
+
+  // -------------------------------------------------------------------------
+  // Central values bar
+  // -------------------------------------------------------------------------
+
+  function renderCentralValues(data) {
+    const top = data.central_values.slice(0, 15);
+    const clusterMap = {};
+    data.clusters.forEach((c) => c.words.forEach((w) => (clusterMap[w] = c.color)));
+
+    const trace = {
+      type: 'bar',
+      orientation: 'h',
+      x: top.map((d) => d.similarity_to_centroid),
+      y: top.map((d) => d.word),
+      marker: {
+        color: top.map((d) => clusterMap[d.word] || '#999'),
+        line: { color: '#ffffff', width: 0.5 },
+      },
+      hovertemplate: '<b>%{y}</b><br>Score: %{x:.3f}<extra></extra>',
+    };
+
+    const layout = {
+      font: { family: "'Inter', 'Helvetica Neue', Arial, sans-serif", size: 12 },
+      paper_bgcolor: '#ffffff',
+      plot_bgcolor: '#ffffff',
+      margin: { t: 10, r: 24, b: 40, l: 120 },
+      xaxis: {
+        title: 'Avg. similarity to each person',
+        titlefont: { size: 11 },
+        tickfont: { size: 10 },
+        range: [
+          Math.min(...top.map((d) => d.similarity_to_centroid)) - 0.02,
+          Math.max(...top.map((d) => d.similarity_to_centroid)) + 0.01,
+        ],
+      },
+      yaxis: { tickfont: { size: 11 }, autorange: 'reversed' },
+    };
+
+    Plotly.newPlot('chart-central', [trace], layout, PLOTLY_CONFIG);
+  }
+
+  // -------------------------------------------------------------------------
+  // Shared values — HTML
+  // -------------------------------------------------------------------------
+
+  function personTag(name, color) {
+    return `<span class="person-tag" style="background:${color}">${name}</span>`;
+  }
+
+  function renderSharedValues(data) {
+    const container = document.getElementById('shared-content');
+
+    // Merge exact and semantic into one flat list
+    const items = [
+      ...data.shared_values.exact.map((item) => ({
+        label: item.word,
+        people: item.people,
+        sim: 1.0,
+      })),
+      ...data.shared_values.semantic.map((item) => ({
+        label: item.words.join(' ≈ '),
+        people: item.people,
+        sim: item.similarity,
+      })),
+    ];
+
+    let html = '<ul class="shared-list">';
+    items.forEach((item) => {
+      const tags = item.people.map((p) => personTag(p, data.person_colors[p])).join('');
+      const badge = `<span class="sim-badge">${item.sim.toFixed(1)}</span>`;
+      html +=
+        `<li class="shared-item">` +
+        `<span class="words">${item.label}</span>` +
+        `<span class="people-tags">${tags}</span>` +
+        badge +
+        `</li>`;
+    });
+    html += '</ul>';
+
+    container.innerHTML = html;
+  }
+
+  // -------------------------------------------------------------------------
+  // Init
+  // -------------------------------------------------------------------------
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const data = window.VALUES_DATA;
+    if (!data) {
+      document.querySelector('main').innerHTML =
+        '<p style="padding:40px;color:#c00">No data found. ' +
+        'Run <code>generate.py</code> first.</p>';
+      return;
+    }
+    renderWordScatter(data);
+    renderPersonHeatmap(data);
+    renderCentralValues(data);
+    renderSharedValues(data);
+  });
+})();
+
+  </script>
+</body>
+</html>
