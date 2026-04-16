@@ -146,8 +146,13 @@ def _validate_session(session_id: str) -> dict | None:
 # Request helpers
 # ---------------------------------------------------------------------------
 
+_DEV_USER = {'id': '1769470813561-9fgy4v2', 'email': 'aabtzu@gmail.com', 'display_name': 'amit'}
+
+
 def get_current_user() -> dict | None:
     """Return the authenticated user for this request, or None."""
+    if _LOCAL_DEV:
+        return _DEV_USER
     session_id = session.get(SESSION_COOKIE)
     if not session_id:
         return None
@@ -169,11 +174,14 @@ def clear_session():
 # Decorators
 # ---------------------------------------------------------------------------
 
+_LOCAL_DEV = os.getenv('LOCAL_DEV', '').lower() in ('1', 'true', 'yes')
+
+
 def requires_auth(f):
     """Redirect unauthenticated users to /login (for HTML routes)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not get_current_user():
+        if not _LOCAL_DEV and not get_current_user():
             return redirect(url_for('auth.login_page', next=request.path))
         return f(*args, **kwargs)
     return decorated
@@ -183,7 +191,7 @@ def requires_auth_api(f):
     """Return 401 JSON for unauthenticated API requests."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not get_current_user():
+        if not _LOCAL_DEV and not get_current_user():
             return jsonify({'error': 'Unauthorized'}), 401
         return f(*args, **kwargs)
     return decorated
