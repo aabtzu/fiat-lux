@@ -121,6 +121,12 @@ main {
   border-color: #b0b8c4;
 }
 
+.show-all-btn--idle {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
 .filter-hint {
   margin: 6px 0 0;
   font-size: 12px;
@@ -150,6 +156,68 @@ main {
   background: #e2e6ea;
   margin: 0 24px;
   flex-shrink: 0;
+}
+
+/* ---- Summary tables ---- */
+
+.summary-grid {
+  display: flex;
+  gap: 32px;
+}
+
+.summary-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-col h2 {
+  margin-bottom: 10px;
+}
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.summary-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8892a4;
+  padding: 0 8px 8px 0;
+  border-bottom: 1px solid #e2e6ea;
+}
+
+.summary-table tbody td {
+  padding: 7px 8px 7px 0;
+  border-bottom: 1px solid #f0f2f5;
+  vertical-align: top;
+  line-height: 1.5;
+  color: #1a1a2e;
+}
+
+.summary-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.summary-name {
+  display: inline-block;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .summary-grid {
+    flex-direction: column;
+    gap: 20px;
+  }
 }
 
 /* ---- Charts ---- */
@@ -309,6 +377,11 @@ main {
   </header>
 
   <main>
+    <!-- Summary tables -->
+    <section class="panel panel--summary" id="panel-summary">
+      <div id="summary-tables"></div>
+    </section>
+
     <!-- Row 1: word scatter + person heatmap -->
     <div class="row row--main">
       <section class="panel panel--large" id="panel-scatter">
@@ -316,7 +389,7 @@ main {
           Value Word Map
           <span class="cluster-badge">5 clusters identified</span>
           <span class="panel-hint">◆ = cluster center · ★ = person</span>
-          <button id="show-all-btn" class="show-all-btn" hidden>show all</button>
+          <button id="show-all-btn" class="show-all-btn show-all-btn--idle">show all</button>
         </h2>
         <div id="chart-scatter" class="chart"></div>
         <p id="filter-hint" class="filter-hint" hidden></p>
@@ -331,7 +404,7 @@ main {
     <!-- Row 2: combined panel -->
     <section class="panel panel--combined">
       <div class="combined-col" id="panel-central">
-        <h2>Most Universal Values <span class="panel-hint">avg. resonance across all people</span></h2>
+        <h2>Most Universal Values <span class="panel-hint">top 15 · avg. resonance across all people</span></h2>
         <div id="chart-central" class="chart"></div>
       </div>
       <div class="combined-divider"></div>
@@ -361,6 +434,7 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
 
   // Module-level state for the scatter filter
   let _data = null;
+  let _textPos = null;           // word -> 'top center' | 'bottom center'
   let _selectedPerson = null;
   let _selectedCluster = null;   // index into data.clusters, or null
   let _nClusters = 0;
@@ -385,8 +459,54 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
   //   [N_CLUSTERS+1 …]    : one star trace per person
   // -------------------------------------------------------------------------
 
+  // Assign 'top center' or 'bottom center' per word to avoid label overlap.
+  // Words near the bottom edge of the chart always label upward (top center),
+  // words near the top edge always label downward, so labels stay in bounds.
+  function computeTextPositions(words, threshold = 0.9) {
+    const ys = words.map((w) => w.y);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const range = maxY - minY;
+    const edgeFraction = 0.18;   // bottom/top 18% of range = "near edge"
+
+    // Start with boundary-aware defaults
+    const pos = {};
+    words.forEach((w) => {
+      if (w.y < minY + range * edgeFraction) {
+        pos[w.word] = 'top center';      // near bottom edge → label goes up
+      } else if (w.y > maxY - range * edgeFraction) {
+        pos[w.word] = 'bottom center';   // near top edge → label goes down
+      } else {
+        pos[w.word] = 'top center';
+      }
+    });
+
+    // Pairwise deconfliction for close pairs, respecting boundary preferences
+    for (let i = 0; i < words.length; i++) {
+      for (let j = i + 1; j < words.length; j++) {
+        const dx = words[i].x - words[j].x;
+        const dy = words[i].y - words[j].y;
+        if (Math.sqrt(dx * dx + dy * dy) < threshold) {
+          const lower = words[i].y < words[j].y ? words[i] : words[j];
+          const upper = words[i].y < words[j].y ? words[j] : words[i];
+          // Only override if not locked by edge constraint
+          if (lower.y >= minY + range * edgeFraction) {
+            pos[lower.word] = 'bottom center';
+          }
+          if (upper.y <= maxY - range * edgeFraction) {
+            pos[upper.word] = 'top center';
+          }
+        }
+      }
+    }
+
+    return pos;
+  }
+
   function buildScatterTraces(data) {
     const traces = [];
+    const textPos = computeTextPositions(data.words);
+    _textPos = textPos;
 
     // --- Cluster word traces ---
     data.clusters.forEach((cluster, i) => {
@@ -400,7 +520,7 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
         x: words.map((w) => w.x),
         y: words.map((w) => w.y),
         text: words.map((w) => w.word),
-        textposition: 'top center',
+        textposition: words.map((w) => textPos[w.word]),
         textfont: { size: 11, color: '#1a1a2e' },
         marker: {
           color: cluster.color,
@@ -533,14 +653,14 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
     const hint = document.getElementById('filter-hint');
     const btn  = document.getElementById('show-all-btn');
     if (hint) { hint.textContent = text; hint.hidden = false; }
-    if (btn)  btn.hidden = false;
+    if (btn)  btn.classList.remove('show-all-btn--idle');
   }
 
   function clearHint() {
     const hint = document.getElementById('filter-hint');
     const btn  = document.getElementById('show-all-btn');
     if (hint) hint.hidden = true;
-    if (btn)  btn.hidden = true;
+    if (btn)  btn.classList.add('show-all-btn--idle');
   }
 
   function restoreWordTraces() {
@@ -548,7 +668,11 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
       const words = _data.words.filter((w) => w.cluster === cluster.id);
       Plotly.restyle(
         'chart-scatter',
-        { 'marker.color': [cluster.color], text: [words.map((w) => w.word)] },
+        {
+          'marker.color': [cluster.color],
+          text: [words.map((w) => w.word)],
+          textposition: [words.map((w) => _textPos[w.word])],
+        },
         [i]
       );
     });
@@ -740,6 +864,49 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
   }
 
   // -------------------------------------------------------------------------
+  // Summary tables — people and clusters at the top
+  // -------------------------------------------------------------------------
+
+  function renderSummaryTables(data) {
+    const container = document.getElementById('summary-tables');
+
+    // People table
+    let peopleHtml = `
+      <div class="summary-col">
+        <h2>People &amp; Values</h2>
+        <table class="summary-table">
+          <thead><tr><th>Person</th><th>Values</th></tr></thead>
+          <tbody>`;
+    Object.entries(data.people).forEach(([person, values]) => {
+      const color = data.person_colors[person];
+      peopleHtml += `
+        <tr>
+          <td><span class="summary-name" style="background:${color}">${person}</span></td>
+          <td>${values.join(', ')}</td>
+        </tr>`;
+    });
+    peopleHtml += '</tbody></table></div>';
+
+    // Clusters table
+    let clustersHtml = `
+      <div class="summary-col">
+        <h2>Clusters</h2>
+        <table class="summary-table">
+          <thead><tr><th>Theme</th><th>Words</th></tr></thead>
+          <tbody>`;
+    data.clusters.forEach((cluster) => {
+      clustersHtml += `
+        <tr>
+          <td><span class="summary-name" style="background:${cluster.color}">${cluster.name}</span></td>
+          <td>${cluster.words.join(', ')}</td>
+        </tr>`;
+    });
+    clustersHtml += '</tbody></table></div>';
+
+    container.innerHTML = `<div class="summary-grid">${peopleHtml}${clustersHtml}</div>`;
+  }
+
+  // -------------------------------------------------------------------------
   // Shared values — HTML
   // -------------------------------------------------------------------------
 
@@ -792,6 +959,7 @@ window.VALUES_DATA = {"people": {"Dhaarmika": ["Kindness", "Curiosity", "Joy", "
         'Run <code>generate.py</code> first.</p>';
       return;
     }
+    renderSummaryTables(data);
     renderWordScatter(data);
     renderPersonHeatmap(data);
     renderCentralValues(data);
