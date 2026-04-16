@@ -3,17 +3,17 @@ Fiat Lux — Flask application factory.
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()  # must run before any local imports that read env vars at module level
+
 from datetime import timedelta
 from flask import Flask
-from dotenv import load_dotenv
 from db import init_db_path, initialise_schema
 from auth_routes import auth_bp
 from main_routes import main_bp
 from file_routes import file_bp
 from view_routes import view_bp
 from share_routes import share_bp
-
-load_dotenv()
 
 
 def create_app() -> Flask:

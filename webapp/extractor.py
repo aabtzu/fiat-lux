@@ -11,10 +11,13 @@ Returns {'text': str, 'file_type': str}
 where file_type ∈ {'schedule', 'invoice', 'healthcare', 'unknown'}
 """
 
+import logging
 import os
 import re
 import json
 import base64
+
+logger = logging.getLogger(__name__)
 
 import anthropic
 
@@ -43,17 +46,24 @@ Use "unknown" only if you truly cannot determine the type.
 Then extract ALL the text content, preserving structure as much as possible.
 Be thorough — include every item, every row, every entry. Do not summarize or skip anything.
 
-Also, if the document contains tabular data (tables, itemized lists, structured records
-with consistent columns), extract every row as a JSON array of objects in "tableData".
-Use consistent, short snake_case keys derived from the column headers.
-Set tableData to null if the document has no clear tabular structure (narrative text,
-contracts, unstructured notes).
+Also extract:
+- "tableData": if the document contains tabular data (tables, itemized lists, structured records
+  with consistent columns), extract every row as a JSON array of objects.
+  Use consistent, short snake_case keys derived from the column headers.
+  Set to null if the document has no clear tabular structure.
+- "metadata": a flat object of non-tabular header/footer fields — names, IDs, addresses,
+  dates, reference numbers, provider info, patient info. Use snake_case keys.
+  Set to null if there are no such fields.
+- "summary": a flat object of totals, counts, date ranges, or aggregate values stated
+  in the document (e.g. total_billed, session_count, date_range). Set to null if none.
 
 Respond in this exact JSON format:
 {
   "fileType": "your short label here",
   "extractedText": "the complete extracted text content",
-  "tableData": [{"col1": "val1", "col2": "val2"}, ...] or null
+  "tableData": [{"col1": "val1", "col2": "val2"}, ...] or null,
+  "metadata": {"provider_name": "...", "patient_name": "..."} or null,
+  "summary": {"total_billed": 1050.00, "session_count": 3} or null
 }"""
 
 
@@ -76,14 +86,18 @@ def _parse(text: str) -> dict:
             parsed = json.loads(m.group(0))
             ft = (parsed.get('fileType') or 'unknown').strip().lower()
             td = parsed.get('tableData')
+            md = parsed.get('metadata')
+            sm = parsed.get('summary')
             return {
                 'text':       parsed.get('extractedText', text),
                 'file_type':  ft or 'unknown',
                 'table_data': td if isinstance(td, list) and td else None,
+                'metadata':   md if isinstance(md, dict) and md else None,
+                'summary':    sm if isinstance(sm, dict) and sm else None,
             }
     except Exception:
-        pass
-    return {'text': text, 'file_type': 'unknown', 'table_data': None}
+        logger.warning('Failed to parse Claude extraction response', exc_info=True)
+    return {'text': text, 'file_type': 'unknown', 'table_data': None, 'metadata': None, 'summary': None}
 
 
 def _via_claude_image(file_bytes: bytes, mime_type: str) -> dict:
@@ -143,10 +157,10 @@ def _extract_pdf_text_fallback(file_bytes: bytes) -> dict:
         pages = [page.extract_text() or '' for page in reader.pages]
         text = '\n\n'.join(f'[Page {i+1}]\n{t}' for i, t in enumerate(pages) if t.strip())
         if not text.strip():
-            return {'text': '[No extractable text found in PDF]', 'file_type': 'unknown', 'table_data': None}
-        return {'text': text, 'file_type': _classify_type_only(text[:3000]), 'table_data': None}
+            return {'text': '[No extractable text found in PDF]', 'file_type': 'unknown', 'table_data': None, 'metadata': None, 'summary': None}
+        return {'text': text, 'file_type': _classify_type_only(text[:3000]), 'table_data': None, 'metadata': None, 'summary': None}
     except ImportError:
-        return {'text': '[pypdf not installed — install it to support large PDFs]', 'file_type': 'unknown'}
+        return {'text': '[pypdf not installed — install it to support large PDFs]', 'file_type': 'unknown', 'table_data': None, 'metadata': None, 'summary': None}
 
 
 def _classify_type_only(sample: str) -> str:

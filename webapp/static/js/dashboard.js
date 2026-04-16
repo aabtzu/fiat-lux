@@ -103,7 +103,7 @@ document.addEventListener('keydown', (e) => {
 
 modalUpload.addEventListener('click', async () => {
   if (!pendingFiles) return;
-  const files = pendingFiles;
+  const files = Array.from(pendingFiles);  // copy before closeModal clears fileInput
   const displayName = modalName.value.trim();
   const initialPrompt = modalPrompt.value.trim();
   closeModal();

@@ -375,7 +375,10 @@ document.getElementById('copy-html')?.addEventListener('click', async () => {
 
 document.getElementById('copy-python')?.addEventListener('click', async () => {
   if (!currentHtml) return;
-  showToast('Generating Python code…');
+  const btn = document.getElementById('copy-python');
+  const originalText = btn.textContent;
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
   try {
     const res = await fetch(`/api/export-python/${fileId}`, {
       method: 'POST',
@@ -385,10 +388,17 @@ document.getElementById('copy-python')?.addEventListener('click', async () => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     if (!data.code) throw new Error('No Python code returned');
-    await navigator.clipboard.writeText(data.code);
-    showToast('Python code copied to clipboard');
+    const blob = new Blob([data.code], { type: 'text/x-python' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'visualization.py';
+    a.click();
+    showToast('Python code downloaded as visualization.py');
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
   }
 });
 

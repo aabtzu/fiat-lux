@@ -124,4 +124,8 @@ def initialise_schema():
             conn.execute("ALTER TABLE source_files ADD COLUMN original_file_path TEXT")
         if 'csv_file_path' not in existing:
             conn.execute("ALTER TABLE source_files ADD COLUMN csv_file_path TEXT")
+        if 'document_model' not in existing:
+            conn.execute("ALTER TABLE source_files ADD COLUMN document_model TEXT")
+        if 'role' not in existing:
+            conn.execute("ALTER TABLE source_files ADD COLUMN role TEXT DEFAULT 'data'")
     print(f"[db] Schema ready — {get_db_path()}")
