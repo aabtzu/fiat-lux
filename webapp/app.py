@@ -14,6 +14,7 @@ from main_routes import main_bp
 from file_routes import file_bp
 from view_routes import view_bp
 from share_routes import share_bp
+from pages_routes import pages_bp
 
 
 def create_app() -> Flask:
@@ -35,6 +36,7 @@ def create_app() -> Flask:
     app.register_blueprint(file_bp)
     app.register_blueprint(view_bp)
     app.register_blueprint(share_bp)
+    app.register_blueprint(pages_bp)
 
     from auth import get_current_user
 
