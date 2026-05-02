@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS files (
   visualization TEXT,
   chat_history TEXT,
   instructions TEXT,
+  folder TEXT,
   initial_prompt TEXT,
   imported_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -113,6 +114,57 @@ CREATE INDEX IF NOT EXISTS idx_shares_user ON file_shares(shared_with_user_id);
 """
 
 
+def _drop_obsolete_files_check_constraint():
+    """Earlier schemas had CHECK(file_type IN (...)). file_type is now freeform —
+    rebuild the table without the CHECK if found."""
+    raw = sqlite3.connect(get_db_path())
+    try:
+        row = raw.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='files'"
+        ).fetchone()
+        if not row or 'CHECK(file_type' not in row[0]:
+            return
+
+        raw.execute("PRAGMA foreign_keys=OFF")
+        raw.execute("BEGIN")
+        try:
+            cols = [r[1] for r in raw.execute("PRAGMA table_info(files)")]
+            cols_csv = ",".join(cols)
+            raw.execute("""
+                CREATE TABLE files_migrated (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    original_name TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    file_type TEXT NOT NULL DEFAULT 'unknown',
+                    file_path TEXT NOT NULL,
+                    original_mime_type TEXT,
+                    visualization TEXT,
+                    chat_history TEXT,
+                    instructions TEXT,
+                    folder TEXT,
+                    initial_prompt TEXT,
+                    imported_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
+            raw.execute(f"INSERT INTO files_migrated ({cols_csv}) SELECT {cols_csv} FROM files")
+            raw.execute("DROP TABLE files")
+            raw.execute("ALTER TABLE files_migrated RENAME TO files")
+            raw.execute("CREATE INDEX IF NOT EXISTS idx_files_user_id ON files(user_id)")
+            raw.execute("CREATE INDEX IF NOT EXISTS idx_files_type ON files(file_type)")
+            raw.execute("CREATE INDEX IF NOT EXISTS idx_files_folder ON files(user_id, folder)")
+            raw.execute("COMMIT")
+            print("[db] Migrated: dropped obsolete file_type CHECK constraint")
+        except Exception:
+            raw.execute("ROLLBACK")
+            raise
+        finally:
+            raw.execute("PRAGMA foreign_keys=ON")
+    finally:
+        raw.close()
+
+
 def initialise_schema():
     """Create tables if they don't exist. Safe to call on every startup."""
     with db() as conn:
@@ -133,4 +185,11 @@ def initialise_schema():
         files_cols = {r[1] for r in conn.execute("PRAGMA table_info(files)")}
         if 'instructions' not in files_cols:
             conn.execute("ALTER TABLE files ADD COLUMN instructions TEXT")
+        if 'folder' not in files_cols:
+            conn.execute("ALTER TABLE files ADD COLUMN folder TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_files_folder ON files(user_id, folder)")
+
+    # Run after the with-block so we operate on a fresh connection without an
+    # open transaction (PRAGMA foreign_keys=OFF requires no active transaction).
+    _drop_obsolete_files_check_constraint()
     print(f"[db] Schema ready — {get_db_path()}")

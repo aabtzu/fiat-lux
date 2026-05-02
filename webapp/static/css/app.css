@@ -46,6 +46,11 @@
   white-space: nowrap;
 }
 
+/* Folder group: rotate chevron when open. Hide native marker. */
+.folder-group > summary { list-style: none; }
+.folder-group > summary::-webkit-details-marker { display: none; }
+.folder-group[open] > summary .folder-chevron { transform: rotate(90deg); }
+
 /* File chips in upload modal */
 .file-chip {
   display: inline-flex;
