@@ -55,6 +55,8 @@ Tue, Fri: 1:35 pm - 5:05 pm
 | **Chat-driven visualization** — generate and refine via conversation | ✅ |
 | **Drag-drop new data** — drop files onto the view to update | ✅ |
 | **Duplicate project** — reuse a layout with a fresh dataset | ✅ |
+| **Pinned instructions** — per-visual rules sent to the model on every turn (CLAUDE.md style) | ✅ |
+| **Folders + editable categories** — organize the dashboard, rename auto-classified types | ✅ |
 | **Export CSV** — extract tables from any visualization | ✅ |
 | **Export HTML / PDF / Python** — multiple download formats | ✅ |
 | **Save individual charts** — hover to save canvas/SVG as JPEG | ✅ |
@@ -149,6 +151,8 @@ Flask adds features not in the original Node version:
 - Duplicate project (reuse layout with new data)
 - Export Python code
 - Stale-data banner on fresh duplicates
+- Pinned per-visual instructions with auto-detection of recurring rules in chat
+- Folders + editable categories for dashboard organization
 
 ## License
 

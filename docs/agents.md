@@ -55,5 +55,16 @@ Any source file marked as a style reference (`is_style_ref=1` in the DB) is pass
 The agents package lives in a separate repo and is pip-installed from GitHub:
 
 - **Repo:** https://github.com/aabtzu/fiat-lux-agents
-- **Agents available:** `LLMBaseAgent`, `DocumentBot`, `FilterBot`, `FilterEngine`, `ChatBot`, `QueryEngine`, `FilterChatBot`
+- **Agents available:** `LLMBase`, `DocumentBot`, `FilterBot`, `FilterEngine`, `ChatBot`, `QueryEngine`, `FilterChatBot`
 - **Fiat Lux uses:** `DocumentBot` only (other agents are used in wsu-eiav and odin-data-explorer)
+
+## Persistent instructions
+
+Each file row has an `instructions` column that holds a freeform CLAUDE.md-style block of rules. Before any `DocumentBot` call, `view_routes.chat` sets:
+
+```python
+bot = DocumentBot()
+bot.instructions = file.get('instructions') or None
+```
+
+`LLMBase.call_api` appends the instructions to the system prompt on every call, so every chat turn — `process`, `refine`, `generate_chart_append` — honors the pinned rules without per-method plumbing. Anyone forking this pattern just needs the same one-line assignment after constructing the bot.
