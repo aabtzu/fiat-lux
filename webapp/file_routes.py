@@ -289,19 +289,78 @@ def duplicate_file(file_id):
             "INSERT INTO files"
             " (id, user_id, original_name, display_name, file_type,"
             "  file_path, original_mime_type, visualization, chat_history,"
-            "  instructions, initial_prompt)"
-            " VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)",
+            "  instructions, folder, initial_prompt)"
+            " VALUES (?,?,?,?,?,?,?,?,NULL,?,?,NULL)",
             (new_id, user['id'], file['original_name'], new_name, file['file_type'],
              '', file.get('original_mime_type', ''), file.get('visualization'),
-             file.get('instructions')),
+             file.get('instructions'), file.get('folder')),
         )
 
     return jsonify({
         'id':           new_id,
         'display_name': new_name,
         'file_type':    file['file_type'],
+        'folder':       file.get('folder'),
         'original_name': file['original_name'],
     })
+
+
+@file_bp.route('/api/files/<file_id>/category', methods=['PATCH'])
+@requires_auth_api
+def update_category(file_id):
+    user = get_current_user()
+    data = request.get_json() or {}
+    value = (data.get('file_type') or '').strip().lower() or 'unknown'
+    with db() as conn:
+        row = conn.execute(
+            "SELECT id FROM files WHERE id=? AND user_id=?",
+            (file_id, user['id']),
+        ).fetchone()
+        if not row:
+            return jsonify({'error': 'File not found or access denied'}), 404
+        conn.execute(
+            "UPDATE files SET file_type=?, updated_at=datetime('now') WHERE id=?",
+            (value, file_id),
+        )
+    return jsonify({'file_type': value})
+
+
+@file_bp.route('/api/files/<file_id>/folder', methods=['PATCH'])
+@requires_auth_api
+def update_folder(file_id):
+    user = get_current_user()
+    data = request.get_json() or {}
+    text = (data.get('folder') or '').strip()
+    value = text or None
+    with db() as conn:
+        row = conn.execute(
+            "SELECT id FROM files WHERE id=? AND user_id=?",
+            (file_id, user['id']),
+        ).fetchone()
+        if not row:
+            return jsonify({'error': 'File not found or access denied'}), 404
+        conn.execute(
+            "UPDATE files SET folder=?, updated_at=datetime('now') WHERE id=?",
+            (value, file_id),
+        )
+    return jsonify({'folder': value or ''})
+
+
+@file_bp.route('/api/folders', methods=['GET'])
+@requires_auth_api
+def list_folders():
+    """Return distinct folder names + categories the user has used (for autocomplete)."""
+    user = get_current_user()
+    with db() as conn:
+        folders = [r[0] for r in conn.execute(
+            "SELECT DISTINCT folder FROM files WHERE user_id=? AND folder IS NOT NULL AND folder!='' ORDER BY folder",
+            (user['id'],),
+        ).fetchall()]
+        categories = [r[0] for r in conn.execute(
+            "SELECT DISTINCT file_type FROM files WHERE user_id=? AND file_type IS NOT NULL AND file_type!='' ORDER BY file_type",
+            (user['id'],),
+        ).fetchall()]
+    return jsonify({'folders': folders, 'categories': categories})
 
 
 @file_bp.route('/api/files/<file_id>', methods=['DELETE'])

@@ -2,7 +2,7 @@
  * view.js — visualization view page
  */
 
-import { showToast } from './app.js';
+import { showToast, showInput } from './app.js';
 
 const { fileId, initialHtml, chatHistory, initialPrompt, instructions, canEdit } = window.VIEW_DATA;
 
@@ -345,6 +345,78 @@ document.getElementById('duplicate-btn')?.addEventListener('click', async (e) =>
   } catch (err) {
     showToast(err.message, 'error');
     btn.disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Folder + category (header chips)
+// ---------------------------------------------------------------------------
+
+async function fetchFolderSuggestions() {
+  try {
+    const res = await fetch('/api/folders');
+    const data = await res.json();
+    return { folders: data.folders || [], categories: data.categories || [] };
+  } catch {
+    return { folders: [], categories: [] };
+  }
+}
+
+document.getElementById('folder-crumb')?.addEventListener('click', async (e) => {
+  if (!canEdit) return;
+  const btn = e.currentTarget;
+  const { folders } = await fetchFolderSuggestions();
+  const value = await showInput({
+    title: 'Move to folder',
+    message: 'Type a folder name or pick an existing one. Leave empty for "Uncategorized".',
+    placeholder: 'e.g. Recipes, Bills',
+    defaultValue: btn.dataset.current || '',
+    suggestions: folders,
+    confirmText: 'Move',
+    allowEmpty: true,
+  });
+  if (value === null) return;
+  try {
+    const res = await fetch(`/api/files/${fileId}/folder`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    showToast(value ? `Moved to "${value}"` : 'Removed from folder');
+    location.reload();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+document.getElementById('category-edit-btn')?.addEventListener('click', async (e) => {
+  if (!canEdit) return;
+  const btn = e.currentTarget;
+  const { categories } = await fetchFolderSuggestions();
+  const value = await showInput({
+    title: 'Change category',
+    message: 'Short label (1–3 words, lowercase).',
+    placeholder: 'e.g. recipe, bill, schedule',
+    defaultValue: btn.dataset.current || '',
+    suggestions: categories,
+    confirmText: 'Save',
+  });
+  if (value === null) return;
+  try {
+    const res = await fetch(`/api/files/${fileId}/category`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_type: value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    btn.textContent = data.file_type;
+    btn.dataset.current = data.file_type;
+    showToast('Category updated');
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 });
 

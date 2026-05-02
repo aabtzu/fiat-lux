@@ -7,6 +7,31 @@
       </svg>
       Dashboard
     </a>
+    {% if file.folder %}
+      <button id="folder-crumb"
+              class="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900
+                     bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full mb-1 transition"
+              data-id="{{ file.id }}" data-current="{{ file.folder }}"
+              title="{% if access != 'view' %}Click to move{% else %}Folder{% endif %}">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+        </svg>
+        {{ file.folder }}
+      </button>
+    {% elif access != 'view' %}
+      <button id="folder-crumb"
+              class="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-amber-600
+                     border border-dashed border-gray-300 hover:border-amber-300 px-2 py-0.5 rounded-full mb-1 transition"
+              data-id="{{ file.id }}" data-current=""
+              title="Move to folder">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+        </svg>
+        Add to folder
+      </button>
+    {% endif %}
     <h1 class="text-xl font-bold text-gray-800">{{ file.display_name }}</h1>
   </div>
 
@@ -15,7 +40,14 @@
     {% if access != 'owner' %}
       <span class="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">Shared with you</span>
     {% endif %}
-    <span class="file-type-badge {{ badge_class(file.file_type) }}">{{ file.file_type }}</span>
+    {% if access != 'view' %}
+      <button id="category-edit-btn"
+              class="file-type-badge {{ badge_class(file.file_type) }} hover:opacity-80 transition"
+              data-id="{{ file.id }}" data-current="{{ file.file_type }}"
+              title="Click to change category">{{ file.file_type }}</button>
+    {% else %}
+      <span class="file-type-badge {{ badge_class(file.file_type) }}">{{ file.file_type }}</span>
+    {% endif %}
 
     {% if access != 'view' %}
     <!-- Instructions button -->

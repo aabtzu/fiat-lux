@@ -2,7 +2,24 @@
  * dashboard.js — upload, delete, rename
  */
 
-import { postJSON, showToast, showConfirm } from './app.js';
+import { postJSON, showToast, showConfirm, showInput } from './app.js';
+
+let _folderCache = null;
+let _categoryCache = null;
+async function loadFolderSuggestions() {
+  if (_folderCache) return { folders: _folderCache, categories: _categoryCache };
+  try {
+    const res = await fetch('/api/folders');
+    const data = await res.json();
+    _folderCache = data.folders || [];
+    _categoryCache = data.categories || [];
+  } catch {
+    _folderCache = [];
+    _categoryCache = [];
+  }
+  return { folders: _folderCache, categories: _categoryCache };
+}
+function clearFolderCache() { _folderCache = null; _categoryCache = null; }
 
 const uploadArea   = document.getElementById('upload-area');
 const fileInput    = document.getElementById('file-input');
@@ -127,8 +144,8 @@ async function handleUpload(files, displayName = '', initialPrompt = '') {
     const res = await fetch('/api/files', { method: 'POST', body: formData });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    prependFileCard(data);
     showToast('File uploaded successfully');
+    location.reload();
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
@@ -242,7 +259,9 @@ fileList.addEventListener('click', async (e) => {
       throw new Error(d.error || `HTTP ${res.status}`);
     }
     const card = fileList.querySelector(`.file-card[data-id="${id}"]`);
+    const group = card?.closest('.folder-group');
     card?.remove();
+    if (group && !group.querySelector('.file-card')) group.remove();
     if (!document.querySelector('.file-card')) showEmptyState();
     showToast('File deleted');
   } catch (err) {
@@ -264,8 +283,8 @@ fileList.addEventListener('click', async (e) => {
     const res = await fetch(`/api/files/${id}/duplicate`, { method: 'POST' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    prependFileCard({ ...data, imported_at: new Date().toISOString() });
     showToast('Duplicated — drop new files to replace data');
+    location.reload();
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
@@ -284,15 +303,95 @@ function showEmptyState() {
 }
 
 // ---------------------------------------------------------------------------
+// Move to folder
+// ---------------------------------------------------------------------------
+
+fileList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.move-btn');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const current = btn.dataset.current || '';
+  const { folders } = await loadFolderSuggestions();
+  const value = await showInput({
+    title: 'Move to folder',
+    message: 'Type a folder name or pick an existing one. Leave empty for "Uncategorized".',
+    placeholder: 'e.g. Recipes, Bills',
+    defaultValue: current,
+    suggestions: folders,
+    confirmText: 'Move',
+    allowEmpty: true,
+  });
+  if (value === null) return;
+  try {
+    const res = await fetch(`/api/files/${id}/folder`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    clearFolderCache();
+    showToast(value ? `Moved to "${value}"` : 'Moved to Uncategorized');
+    location.reload();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Edit category (click on the category badge)
+// ---------------------------------------------------------------------------
+
+fileList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.category-edit-btn');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const current = btn.dataset.current || '';
+  const { categories } = await loadFolderSuggestions();
+  const value = await showInput({
+    title: 'Change category',
+    message: 'Short label (1–3 words, lowercase). The category groups similar documents.',
+    placeholder: 'e.g. recipe, bill, schedule',
+    defaultValue: current,
+    suggestions: categories,
+    confirmText: 'Save',
+  });
+  if (value === null) return;
+  try {
+    const res = await fetch(`/api/files/${id}/category`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_type: value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    clearFolderCache();
+    btn.textContent = data.file_type;
+    btn.dataset.current = data.file_type;
+    showToast('Category updated');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Rename (double-click on name)
 // ---------------------------------------------------------------------------
 
 fileList.addEventListener('dblclick', (e) => {
+  // Rename: double-click on the file-name itself
   const nameEl = e.target.closest('.file-name');
-  if (!nameEl || nameEl.contentEditable === 'true') return;
-  const card = nameEl.closest('.file-card');
+  if (nameEl && nameEl.contentEditable !== 'true') {
+    const card = nameEl.closest('.file-card');
+    if (card) startRename(nameEl, card.dataset.id);
+    return;
+  }
+
+  // Open: double-click anywhere else on the card (skip buttons, links, editing fields)
+  const card = e.target.closest('.file-card');
   if (!card) return;
-  startRename(nameEl, card.dataset.id);
+  if (e.target.closest('button, a, [contenteditable="true"], input, textarea')) return;
+  window.location.href = `/view/${card.dataset.id}`;
 });
 
 function startRename(el, id) {
