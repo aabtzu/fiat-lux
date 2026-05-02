@@ -192,6 +192,7 @@ async function sendMessage(message) {
 
   chatInput.value = '';
   addMessage('user', message);
+  document.getElementById('chat-empty-tip')?.classList.add('hidden');
   setLoading(true);
 
   abortCtrl = new AbortController();
@@ -215,6 +216,10 @@ async function sendMessage(message) {
     if (data.html) {
       currentHtml = data.html;
       setVisualization(data.html);
+    }
+
+    if (canEdit && data.persistentRuleSuggestion) {
+      addPinSuggestion(data.persistentRuleSuggestion);
     }
   } catch (err) {
     removeTyping();
@@ -355,11 +360,33 @@ const instructionsStatus   = document.getElementById('instructions-status');
 
 let savedInstructions = (instructions || '').trim();
 
+const instructionsChip     = document.getElementById('instructions-chip');
+const instructionsChipText = document.getElementById('instructions-chip-text');
+const chatEmptyTip         = document.getElementById('chat-empty-tip');
+
+function refreshChatHints() {
+  if (instructionsChip) {
+    if (savedInstructions) {
+      instructionsChipText.textContent = savedInstructions;
+      instructionsChip.classList.remove('hidden');
+    } else {
+      instructionsChip.classList.add('hidden');
+    }
+  }
+  if (chatEmptyTip) {
+    const showTip = history.length === 0 && !savedInstructions;
+    chatEmptyTip.classList.toggle('hidden', !showTip);
+  }
+}
+
 function refreshInstructionsIndicator() {
-  if (!instructionsDot) return;
-  instructionsDot.classList.toggle('hidden', !savedInstructions);
+  if (instructionsDot) instructionsDot.classList.toggle('hidden', !savedInstructions);
+  refreshChatHints();
 }
 refreshInstructionsIndicator();
+
+document.getElementById('instructions-chip-edit')?.addEventListener('click', () => openInstructionsModal());
+document.getElementById('chat-empty-tip-link')?.addEventListener('click', () => openInstructionsModal());
 
 function openInstructionsModal() {
   if (!instructionsModal) return;
@@ -381,6 +408,7 @@ document.getElementById('instructions-backdrop')?.addEventListener('click', clos
 document.getElementById('instructions-save')?.addEventListener('click', async (e) => {
   const btn = e.currentTarget;
   const text = instructionsTextarea.value.trim();
+  const previous = savedInstructions;
   btn.disabled = true;
   instructionsStatus.textContent = 'Saving…';
   try {
@@ -395,12 +423,69 @@ document.getElementById('instructions-save')?.addEventListener('click', async (e
     refreshInstructionsIndicator();
     showToast(savedInstructions ? 'Instructions saved' : 'Instructions cleared');
     closeInstructionsModal();
+
+    // Auto-apply: if instructions changed and we have a visualization, ask the
+    // model to refresh it with the new rules in effect.
+    const changed = savedInstructions !== previous;
+    if (changed && savedInstructions && currentHtml) {
+      sendMessage('Apply the updated persistent instructions to this visualization.');
+    }
   } catch (err) {
     instructionsStatus.textContent = err.message;
   } finally {
     btn.disabled = false;
   }
 });
+
+async function pinSuggestionToInstructions(suggestion) {
+  const merged = savedInstructions
+    ? `${savedInstructions}\n${suggestion}`
+    : suggestion;
+  const res = await fetch(`/api/file/${fileId}/instructions`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ instructions: merged }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  savedInstructions = (data.instructions || '').trim();
+  refreshInstructionsIndicator();
+}
+
+function addPinSuggestion(suggestion) {
+  const wrap = document.createElement('div');
+  wrap.className = 'pin-suggestion mx-1 my-1 px-3 py-2 rounded-lg bg-amber-50 ' +
+                   'border border-amber-200 text-xs text-amber-900 flex items-start gap-2';
+  wrap.innerHTML = `
+    <span class="flex-shrink-0 mt-0.5">💡</span>
+    <div class="flex-1 min-w-0">
+      <div class="mb-1">This sounds like a recurring rule. Pin it for future turns?</div>
+      <div class="italic text-amber-700 mb-2 break-words">"${suggestion.replace(/"/g, '&quot;')}"</div>
+      <div class="flex gap-2">
+        <button class="pin-btn px-2 py-0.5 bg-amber-500 text-white rounded text-xs font-medium hover:bg-amber-600 transition">Pin it</button>
+        <button class="dismiss-btn px-2 py-0.5 text-amber-700 hover:text-amber-900 transition">Just this time</button>
+      </div>
+    </div>
+  `;
+  chatMessages.appendChild(wrap);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  wrap.querySelector('.pin-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'Pinning…';
+    try {
+      await pinSuggestionToInstructions(suggestion);
+      wrap.innerHTML = '<span class="flex-shrink-0">📌</span><div class="flex-1 text-amber-700">Pinned to instructions.</div>';
+      showToast('Pinned to instructions');
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Pin it';
+      showToast(err.message, 'error');
+    }
+  });
+  wrap.querySelector('.dismiss-btn').addEventListener('click', () => wrap.remove());
+}
 
 // ---------------------------------------------------------------------------
 // Export

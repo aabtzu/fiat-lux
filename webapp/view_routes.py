@@ -282,6 +282,63 @@ def view_file(file_id):
     )
 
 
+_CLASSIFIER_SYSTEM_PROMPT = """You classify user messages sent to a data-visualization assistant.
+
+Decide whether the message describes a PERSISTENT RULE — a stylistic or formatting
+preference the user wants applied to every future change — or a ONE-SHOT request
+for a specific change to make right now.
+
+Examples of persistent rules:
+- "don't use color gradients, use solid muted colors"
+- "always cite specific dates when columns share an event"
+- "use blue for headers"
+- "I never want emojis in this visualization"
+
+Examples of one-shot requests:
+- "make the title bigger"
+- "add a chart of monthly totals"
+- "change the date in row 3 to Dec 22"
+- "redo without gradients" (specific, this-time only)
+
+Be conservative: only flag as persistent when the user clearly intends a standing
+rule. When in doubt, return persistent=false.
+
+Return JSON only, no prose:
+{"persistent": true|false, "suggestion": "<concise rephrasing as a standalone rule>"}
+
+If persistent=false, suggestion must be "" (empty string)."""
+
+
+_AUTO_GENERATED_PREFIXES = (
+    "Apply the updated persistent instructions",
+    "New data added:",
+)
+
+
+def _classify_persistent_rule(message: str) -> dict:
+    """Quick Haiku classifier — returns {'persistent': bool, 'suggestion': str}.
+    Returns {'persistent': False, 'suggestion': ''} on any failure or for
+    auto-generated messages we send ourselves."""
+    if not message or any(message.startswith(p) for p in _AUTO_GENERATED_PREFIXES):
+        return {'persistent': False, 'suggestion': ''}
+
+    try:
+        from fiat_lux_agents import LLMBase
+        bot = LLMBase(model='claude-haiku-4-5-20251001', max_tokens=200)
+        text = bot.call_api(
+            _CLASSIFIER_SYSTEM_PROMPT,
+            [{'role': 'user', 'content': message}],
+        )
+        result = bot.parse_json_response(text)
+        return {
+            'persistent': bool(result.get('persistent')),
+            'suggestion': (result.get('suggestion') or '').strip(),
+        }
+    except Exception:
+        current_app.logger.warning('persistent-rule classifier failed', exc_info=True)
+        return {'persistent': False, 'suggestion': ''}
+
+
 @view_bp.route('/api/chat/<file_id>', methods=['POST'])
 @requires_auth_api
 def chat(file_id):
@@ -342,9 +399,16 @@ def chat(file_id):
                 (new_html, json.dumps(new_history), file_id)
             )
 
+        # Classify whether the user's request looks like a persistent rule —
+        # offers an inline "pin this?" prompt in the UI when so.
+        classification = _classify_persistent_rule(message)
+        already_pinned = classification['suggestion'].lower() in (file.get('instructions') or '').lower()
+
         return jsonify({
             'message': result.get('message', ''),
             'html':    result.get('html'),
+            'persistentRuleSuggestion':
+                classification['suggestion'] if classification['persistent'] and not already_pinned else None,
         })
 
     except Exception as e:
