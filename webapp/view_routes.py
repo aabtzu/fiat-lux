@@ -277,6 +277,7 @@ def view_file(file_id):
         file=file,
         access=access,
         chat_history=chat_history,
+        instructions=file.get('instructions') or '',
         source_files=_get_source_files(file_id),
     )
 
@@ -302,6 +303,7 @@ def chat(file_id):
     try:
         from fiat_lux_agents import DocumentBot
         bot = DocumentBot()
+        bot.instructions = file.get('instructions') or None
         style_refs = _get_style_refs(file_id, user['id'])
 
         if current_html and not _needs_full_reread(message):
@@ -349,6 +351,31 @@ def chat(file_id):
         current_app.logger.error('Chat error', exc_info=True)
         msg = str(e) if current_app.debug else 'Something went wrong generating the visualization. Please try again.'
         return jsonify({'error': msg}), 500
+
+
+@view_bp.route('/api/file/<file_id>/instructions', methods=['GET', 'PATCH'])
+@requires_auth_api
+def file_instructions(file_id):
+    user = get_current_user()
+    file, access = _get_file(file_id, user['id'])
+    if not file:
+        return jsonify({'error': 'File not found'}), 404
+
+    if request.method == 'GET':
+        return jsonify({'instructions': file.get('instructions') or ''})
+
+    if access == 'view':
+        return jsonify({'error': 'Read-only access'}), 403
+
+    data = request.get_json() or {}
+    text = (data.get('instructions') or '').strip()
+    value = text if text else None
+    with db() as conn:
+        conn.execute(
+            "UPDATE files SET instructions=?, updated_at=datetime('now') WHERE id=?",
+            (value, file_id),
+        )
+    return jsonify({'instructions': value or ''})
 
 
 @view_bp.route('/api/export-python/<file_id>', methods=['POST'])

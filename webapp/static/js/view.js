@@ -4,7 +4,7 @@
 
 import { showToast } from './app.js';
 
-const { fileId, initialHtml, chatHistory, initialPrompt, canEdit } = window.VIEW_DATA;
+const { fileId, initialHtml, chatHistory, initialPrompt, instructions, canEdit } = window.VIEW_DATA;
 
 // Injected into every visualization to add a "Save" hover button on each
 // canvas/svg element. On click, reads the element as JPEG and posts to parent.
@@ -339,6 +339,65 @@ document.getElementById('duplicate-btn')?.addEventListener('click', async (e) =>
     window.location.href = `/view/${data.id}`;
   } catch (err) {
     showToast(err.message, 'error');
+    btn.disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Persistent instructions
+// ---------------------------------------------------------------------------
+
+const instructionsBtn      = document.getElementById('instructions-btn');
+const instructionsModal    = document.getElementById('instructions-modal');
+const instructionsTextarea = document.getElementById('instructions-textarea');
+const instructionsDot      = document.getElementById('instructions-dot');
+const instructionsStatus   = document.getElementById('instructions-status');
+
+let savedInstructions = (instructions || '').trim();
+
+function refreshInstructionsIndicator() {
+  if (!instructionsDot) return;
+  instructionsDot.classList.toggle('hidden', !savedInstructions);
+}
+refreshInstructionsIndicator();
+
+function openInstructionsModal() {
+  if (!instructionsModal) return;
+  instructionsTextarea.value = savedInstructions;
+  instructionsStatus.textContent = '';
+  instructionsModal.classList.remove('hidden');
+  instructionsTextarea.focus();
+}
+
+function closeInstructionsModal() {
+  instructionsModal?.classList.add('hidden');
+}
+
+instructionsBtn?.addEventListener('click', openInstructionsModal);
+document.getElementById('instructions-close')?.addEventListener('click', closeInstructionsModal);
+document.getElementById('instructions-cancel')?.addEventListener('click', closeInstructionsModal);
+document.getElementById('instructions-backdrop')?.addEventListener('click', closeInstructionsModal);
+
+document.getElementById('instructions-save')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const text = instructionsTextarea.value.trim();
+  btn.disabled = true;
+  instructionsStatus.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/file/${fileId}/instructions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instructions: text }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    savedInstructions = (data.instructions || '').trim();
+    refreshInstructionsIndicator();
+    showToast(savedInstructions ? 'Instructions saved' : 'Instructions cleared');
+    closeInstructionsModal();
+  } catch (err) {
+    instructionsStatus.textContent = err.message;
+  } finally {
     btn.disabled = false;
   }
 });

@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS files (
   original_mime_type TEXT,
   visualization TEXT,
   chat_history TEXT,
+  instructions TEXT,
   initial_prompt TEXT,
   imported_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -128,4 +129,8 @@ def initialise_schema():
             conn.execute("ALTER TABLE source_files ADD COLUMN document_model TEXT")
         if 'role' not in existing:
             conn.execute("ALTER TABLE source_files ADD COLUMN role TEXT DEFAULT 'data'")
+
+        files_cols = {r[1] for r in conn.execute("PRAGMA table_info(files)")}
+        if 'instructions' not in files_cols:
+            conn.execute("ALTER TABLE files ADD COLUMN instructions TEXT")
     print(f"[db] Schema ready — {get_db_path()}")
