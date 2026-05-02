@@ -11,6 +11,7 @@ window.VIEW_DATA = {
   initialHtml:  {{ (file.visualization or '') | tojson }},
   chatHistory:  {{ chat_history | tojson }},
   initialPrompt: {{ (file.initial_prompt or '') | tojson }},
+  instructions: {{ instructions | tojson }},
   canEdit:      {{ (access != 'view') | tojson }},
 };
 </script>
@@ -42,6 +43,9 @@ window.VIEW_DATA = {
 </div>
 
 {% include "includes/share_dialog.html" %}
+{% if access != 'view' %}
+  {% include "includes/instructions_dialog.html" %}
+{% endif %}
 {% endblock %}
 
 {% block extra_scripts %}

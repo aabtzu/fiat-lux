@@ -17,6 +17,23 @@
     {% endif %}
     <span class="file-type-badge {{ badge_class(file.file_type) }}">{{ file.file_type }}</span>
 
+    {% if access != 'view' %}
+    <!-- Instructions button -->
+    <button id="instructions-btn"
+            class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border border-gray-200
+                   rounded-full text-gray-500 hover:border-amber-300 hover:text-amber-600 transition"
+            title="Persistent instructions for this visualization">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <span>Instructions</span>
+      <span id="instructions-dot"
+            class="hidden w-1.5 h-1.5 rounded-full bg-amber-500"
+            title="Instructions are set"></span>
+    </button>
+    {% endif %}
+
     {% if access == 'owner' %}
     <!-- Duplicate button -->
     <button id="duplicate-btn"

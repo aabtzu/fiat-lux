@@ -2,7 +2,7 @@
  * dashboard.js — upload, delete, rename
  */
 
-import { postJSON, showToast } from './app.js';
+import { postJSON, showToast, showConfirm } from './app.js';
 
 const uploadArea   = document.getElementById('upload-area');
 const fileInput    = document.getElementById('file-input');
@@ -229,7 +229,11 @@ fileList.addEventListener('click', async (e) => {
   const btn = e.target.closest('.delete-btn');
   if (!btn) return;
   const id = btn.dataset.id;
-  if (!confirm('Delete this file?')) return;
+  if (!await showConfirm('Delete this file? This cannot be undone.', {
+    title: 'Delete file',
+    confirmText: 'Delete',
+    danger: true,
+  })) return;
 
   try {
     const res = await fetch(`/api/files/${id}`, { method: 'DELETE' });

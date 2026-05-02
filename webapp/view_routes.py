@@ -277,8 +277,66 @@ def view_file(file_id):
         file=file,
         access=access,
         chat_history=chat_history,
+        instructions=file.get('instructions') or '',
         source_files=_get_source_files(file_id),
     )
+
+
+_CLASSIFIER_SYSTEM_PROMPT = """You classify user messages sent to a data-visualization assistant.
+
+Decide whether the message describes a PERSISTENT RULE — a stylistic or formatting
+preference the user wants applied to every future change — or a ONE-SHOT request
+for a specific change to make right now.
+
+Examples of persistent rules:
+- "don't use color gradients, use solid muted colors"
+- "always cite specific dates when columns share an event"
+- "use blue for headers"
+- "I never want emojis in this visualization"
+
+Examples of one-shot requests:
+- "make the title bigger"
+- "add a chart of monthly totals"
+- "change the date in row 3 to Dec 22"
+- "redo without gradients" (specific, this-time only)
+
+Be conservative: only flag as persistent when the user clearly intends a standing
+rule. When in doubt, return persistent=false.
+
+Return JSON only, no prose:
+{"persistent": true|false, "suggestion": "<concise rephrasing as a standalone rule>"}
+
+If persistent=false, suggestion must be "" (empty string)."""
+
+
+_AUTO_GENERATED_PREFIXES = (
+    "Apply the updated persistent instructions",
+    "New data added:",
+)
+
+
+def _classify_persistent_rule(message: str) -> dict:
+    """Quick Haiku classifier — returns {'persistent': bool, 'suggestion': str}.
+    Returns {'persistent': False, 'suggestion': ''} on any failure or for
+    auto-generated messages we send ourselves."""
+    if not message or any(message.startswith(p) for p in _AUTO_GENERATED_PREFIXES):
+        return {'persistent': False, 'suggestion': ''}
+
+    try:
+        from fiat_lux_agents import LLMBase
+        bot = LLMBase(model='claude-haiku-4-5-20251001', max_tokens=200)
+        text = bot.call_api(
+            _CLASSIFIER_SYSTEM_PROMPT,
+            [{'role': 'user', 'content': message}],
+        )
+        result = bot.parse_json_response(text)
+        return {
+            'persistent': bool(result.get('persistent')),
+            'suggestion': (result.get('suggestion') or '').strip(),
+        }
+    except Exception:
+        current_app.logger.warning('persistent-rule classifier failed', exc_info=True)
+        return {'persistent': False, 'suggestion': ''}
 
 
 @view_bp.route('/api/chat/<file_id>', methods=['POST'])
@@ -302,6 +360,7 @@ def chat(file_id):
     try:
         from fiat_lux_agents import DocumentBot
         bot = DocumentBot()
+        bot.instructions = file.get('instructions') or None
         style_refs = _get_style_refs(file_id, user['id'])
 
         if current_html and not _needs_full_reread(message):
@@ -340,15 +399,47 @@ def chat(file_id):
                 (new_html, json.dumps(new_history), file_id)
             )
 
+        # Classify whether the user's request looks like a persistent rule —
+        # offers an inline "pin this?" prompt in the UI when so.
+        classification = _classify_persistent_rule(message)
+        already_pinned = classification['suggestion'].lower() in (file.get('instructions') or '').lower()
+
         return jsonify({
             'message': result.get('message', ''),
             'html':    result.get('html'),
+            'persistentRuleSuggestion':
+                classification['suggestion'] if classification['persistent'] and not already_pinned else None,
         })
 
     except Exception as e:
         current_app.logger.error('Chat error', exc_info=True)
         msg = str(e) if current_app.debug else 'Something went wrong generating the visualization. Please try again.'
         return jsonify({'error': msg}), 500
+
+
+@view_bp.route('/api/file/<file_id>/instructions', methods=['GET', 'PATCH'])
+@requires_auth_api
+def file_instructions(file_id):
+    user = get_current_user()
+    file, access = _get_file(file_id, user['id'])
+    if not file:
+        return jsonify({'error': 'File not found'}), 404
+
+    if request.method == 'GET':
+        return jsonify({'instructions': file.get('instructions') or ''})
+
+    if access == 'view':
+        return jsonify({'error': 'Read-only access'}), 403
+
+    data = request.get_json() or {}
+    text = (data.get('instructions') or '').strip()
+    value = text if text else None
+    with db() as conn:
+        conn.execute(
+            "UPDATE files SET instructions=?, updated_at=datetime('now') WHERE id=?",
+            (value, file_id),
+        )
+    return jsonify({'instructions': value or ''})
 
 
 @view_bp.route('/api/export-python/<file_id>', methods=['POST'])

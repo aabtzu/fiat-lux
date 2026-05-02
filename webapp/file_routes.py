@@ -288,10 +288,12 @@ def duplicate_file(file_id):
         conn.execute(
             "INSERT INTO files"
             " (id, user_id, original_name, display_name, file_type,"
-            "  file_path, original_mime_type, visualization, chat_history, initial_prompt)"
-            " VALUES (?,?,?,?,?,?,?,?,NULL,NULL)",
+            "  file_path, original_mime_type, visualization, chat_history,"
+            "  instructions, initial_prompt)"
+            " VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)",
             (new_id, user['id'], file['original_name'], new_name, file['file_type'],
-             '', file.get('original_mime_type', ''), file.get('visualization')),
+             '', file.get('original_mime_type', ''), file.get('visualization'),
+             file.get('instructions')),
         )
 
     return jsonify({

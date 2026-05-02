@@ -1,0 +1,42 @@
+<!-- Persistent instructions modal -->
+<div id="instructions-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4">
+  <div class="absolute inset-0 bg-black bg-opacity-40" id="instructions-backdrop"></div>
+  <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="text-lg font-semibold text-gray-800">Persistent instructions</h2>
+        <p class="text-xs text-gray-500 mt-0.5">
+          These rules are sent to the model on every chat turn for this visualization.
+        </p>
+      </div>
+      <button id="instructions-close" class="text-gray-400 hover:text-gray-600 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <textarea id="instructions-textarea"
+              rows="10"
+              placeholder="e.g. When two columns share an event, call out the specific date in each column (e.g. &quot;finals end (Dec 20)&quot;)."
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700
+                     focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none resize-y"></textarea>
+
+    <div class="flex items-center justify-between mt-4">
+      <span id="instructions-status" class="text-xs text-gray-400"></span>
+      <div class="flex gap-2">
+        <button id="instructions-cancel"
+                class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 transition">
+          Cancel
+        </button>
+        <button id="instructions-save"
+                class="px-4 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium
+                       hover:bg-amber-600 disabled:opacity-50 transition">
+          Save
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
