@@ -2,6 +2,7 @@
 File management blueprint.
 
 POST   /api/files          — upload one or more files
+POST   /api/files/empty    — create a blank project (no files)
 GET    /api/files          — list owned + shared files
 PATCH  /api/files/<id>     — rename
 DELETE /api/files/<id>     — delete
@@ -103,6 +104,29 @@ def list_files():
         'owned':  [dict(r) for r in owned],
         'shared': [dict(r) for r in shared],
     })
+
+
+@file_bp.route('/api/files/empty', methods=['POST'])
+@requires_auth_api
+def create_empty_file():
+    user = get_current_user()
+    data = request.get_json() or {}
+    display_name = (data.get('displayName') or '').strip()
+    initial_prompt = (data.get('initialPrompt') or '').strip()
+    if not display_name:
+        return jsonify({'error': 'displayName required'}), 400
+
+    file_id = _gen_id()
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO files"
+            " (id, user_id, original_name, display_name, file_type, file_path,"
+            "  original_mime_type, initial_prompt)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (file_id, user['id'], display_name, display_name, 'note', '', None,
+             initial_prompt or None),
+        )
+    return jsonify({'id': file_id, 'display_name': display_name, 'file_type': 'note'})
 
 
 @file_bp.route('/api/files', methods=['POST'])
