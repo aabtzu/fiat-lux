@@ -62,6 +62,7 @@ const modalUpload      = document.getElementById('modal-upload');
 
 let pendingFiles = null;
 let isEmptyProject = false;
+let pendingUrl = null;
 
 // ---------------------------------------------------------------------------
 // Upload
@@ -88,6 +89,20 @@ uploadArea.addEventListener('drop', (e) => {
 document.getElementById('new-empty-btn').addEventListener('click', (e) => {
   e.stopPropagation();
   openModal(null);
+});
+
+const urlInput     = document.getElementById('url-input');
+const urlImportBtn = document.getElementById('url-import-btn');
+
+function triggerUrlImport() {
+  const url = urlInput.value.trim();
+  if (!url) return;
+  openModalForUrl(url);
+}
+
+urlImportBtn.addEventListener('click', (e) => { e.stopPropagation(); triggerUrlImport(); });
+urlInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); triggerUrlImport(); }
 });
 
 // ---------------------------------------------------------------------------
@@ -128,10 +143,29 @@ function openModal(files) {
   if (!isEmptyProject) modalName.select();
 }
 
+function openModalForUrl(url) {
+  isEmptyProject = false;
+  pendingFiles = null;
+  pendingUrl = url;
+
+  modalTitle.textContent = 'Import from URL';
+  const shortUrl = url.length > 60 ? url.slice(0, 57) + '…' : url;
+  modalSubtitle.textContent = shortUrl;
+  modalFilesSection.classList.add('hidden');
+  modalUpload.textContent = 'Import';
+  modalName.value = '';
+  modalPrompt.value = '';
+  modalPrompt.placeholder = 'e.g. Summarise the key points, extract all dates…';
+
+  uploadModal.classList.remove('hidden');
+  modalName.focus();
+}
+
 function closeModal() {
   uploadModal.classList.add('hidden');
   pendingFiles = null;
   isEmptyProject = false;
+  pendingUrl = null;
   fileInput.value = '';
 }
 
@@ -145,13 +179,17 @@ modalUpload.addEventListener('click', async () => {
   const displayName = modalName.value.trim();
   const initialPrompt = modalPrompt.value.trim();
 
-  if (isEmptyProject) {
+  if (pendingUrl) {
+    const url = pendingUrl;
+    closeModal();
+    await handleImportFromUrl(url, displayName, initialPrompt);
+  } else if (isEmptyProject) {
     if (!displayName) { modalName.focus(); return; }
     closeModal();
     await handleCreateEmpty(displayName, initialPrompt);
   } else {
     if (!pendingFiles) return;
-    const files = Array.from(pendingFiles);  // copy before closeModal clears fileInput
+    const files = Array.from(pendingFiles);
     closeModal();
     await handleUpload(files, displayName, initialPrompt);
   }
@@ -181,6 +219,26 @@ async function handleUpload(files, displayName = '', initialPrompt = '') {
   } finally {
     setUploading(false);
     fileInput.value = '';
+  }
+}
+
+async function handleImportFromUrl(url, displayName, initialPrompt) {
+  setUploading(true);
+  uploadStatus.textContent = 'Fetching URL…';
+  try {
+    const res = await fetch('/api/files/from-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, displayName, initialPrompt }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    urlInput.value = '';
+    window.location.href = `/view/${data.id}`;
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    setUploading(false);
   }
 }
 
