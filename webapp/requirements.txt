@@ -7,6 +7,4 @@ python-docx==1.1.2
 pypdf==5.4.0
 pandas==2.2.3
 openpyxl==3.1.5
-requests==2.32.3
-trafilatura==2.0.0
-git+https://github.com/aabtzu/fiat-lux-agents#egg=fiat-lux-agents
+git+https://github.com/aabtzu/fiat-lux-agents#egg=fiat-lux-agents[web]
