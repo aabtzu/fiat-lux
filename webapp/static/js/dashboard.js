@@ -48,16 +48,20 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 // Modal elements
-const uploadModal    = document.getElementById('upload-modal');
-const modalBackdrop  = document.getElementById('modal-backdrop');
-const modalName      = document.getElementById('modal-name');
-const modalPrompt    = document.getElementById('modal-prompt');
-const modalFileChips = document.getElementById('modal-file-chips');
-const modalMultiHint = document.getElementById('modal-multi-hint');
-const modalCancel    = document.getElementById('modal-cancel');
-const modalUpload    = document.getElementById('modal-upload');
+const uploadModal      = document.getElementById('upload-modal');
+const modalBackdrop    = document.getElementById('modal-backdrop');
+const modalTitle       = document.getElementById('modal-title');
+const modalSubtitle    = document.getElementById('modal-subtitle');
+const modalFilesSection = document.getElementById('modal-files-section');
+const modalName        = document.getElementById('modal-name');
+const modalPrompt      = document.getElementById('modal-prompt');
+const modalFileChips   = document.getElementById('modal-file-chips');
+const modalMultiHint   = document.getElementById('modal-multi-hint');
+const modalCancel      = document.getElementById('modal-cancel');
+const modalUpload      = document.getElementById('modal-upload');
 
 let pendingFiles = null;
+let isEmptyProject = false;
 
 // ---------------------------------------------------------------------------
 // Upload
@@ -81,34 +85,53 @@ uploadArea.addEventListener('drop', (e) => {
   if (e.dataTransfer.files.length) openModal(e.dataTransfer.files);
 });
 
+document.getElementById('new-empty-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  openModal(null);
+});
+
 // ---------------------------------------------------------------------------
 // Modal
 // ---------------------------------------------------------------------------
 
 function openModal(files) {
-  pendingFiles = files;
+  isEmptyProject = !files;
+  pendingFiles = files || null;
 
-  // Pre-fill name from the first file (best guess for any count)
-  const firstName = files[0].name;
-  modalName.value = firstName.includes('.') ? firstName.slice(0, firstName.lastIndexOf('.')) : firstName;
+  if (isEmptyProject) {
+    modalTitle.textContent = 'New empty project';
+    modalSubtitle.textContent = 'Name it and optionally add instructions — you can add files later.';
+    modalFilesSection.classList.add('hidden');
+    modalUpload.textContent = 'Create';
+    modalName.value = '';
+    modalPrompt.value = '';
+    modalPrompt.placeholder = 'e.g. Track a guest list, plan a schedule, draft notes…';
+  } else {
+    modalTitle.textContent = 'New document';
+    modalSubtitle.textContent = 'Name it, add optional instructions, then upload.';
+    modalFilesSection.classList.remove('hidden');
+    modalUpload.textContent = 'Upload';
+    modalPrompt.placeholder = 'e.g. Create a weekly calendar view, highlight the totals…';
 
-  // Render file chips
-  modalFileChips.innerHTML = Array.from(files).map(f =>
-    `<span class="file-chip">${escHtml(f.name)}</span>`
-  ).join('');
+    const firstName = files[0].name;
+    modalName.value = firstName.includes('.') ? firstName.slice(0, firstName.lastIndexOf('.')) : firstName;
 
-  // Show multi-file hint when more than one file
-  modalMultiHint.classList.toggle('hidden', files.length <= 1);
+    modalFileChips.innerHTML = Array.from(files).map(f =>
+      `<span class="file-chip">${escHtml(f.name)}</span>`
+    ).join('');
 
-  modalPrompt.value = '';
+    modalMultiHint.classList.toggle('hidden', files.length <= 1);
+  }
+
   uploadModal.classList.remove('hidden');
   modalName.focus();
-  modalName.select();
+  if (!isEmptyProject) modalName.select();
 }
 
 function closeModal() {
   uploadModal.classList.add('hidden');
   pendingFiles = null;
+  isEmptyProject = false;
   fileInput.value = '';
 }
 
@@ -119,12 +142,19 @@ document.addEventListener('keydown', (e) => {
 });
 
 modalUpload.addEventListener('click', async () => {
-  if (!pendingFiles) return;
-  const files = Array.from(pendingFiles);  // copy before closeModal clears fileInput
   const displayName = modalName.value.trim();
   const initialPrompt = modalPrompt.value.trim();
-  closeModal();
-  await handleUpload(files, displayName, initialPrompt);
+
+  if (isEmptyProject) {
+    if (!displayName) { modalName.focus(); return; }
+    closeModal();
+    await handleCreateEmpty(displayName, initialPrompt);
+  } else {
+    if (!pendingFiles) return;
+    const files = Array.from(pendingFiles);  // copy before closeModal clears fileInput
+    closeModal();
+    await handleUpload(files, displayName, initialPrompt);
+  }
 });
 
 // Allow Enter in name field to submit
@@ -151,6 +181,21 @@ async function handleUpload(files, displayName = '', initialPrompt = '') {
   } finally {
     setUploading(false);
     fileInput.value = '';
+  }
+}
+
+async function handleCreateEmpty(displayName, initialPrompt) {
+  try {
+    const res = await fetch('/api/files/empty', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName, initialPrompt }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    window.location.href = `/view/${data.id}`;
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 }
 
