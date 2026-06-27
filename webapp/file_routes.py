@@ -1,11 +1,12 @@
 """
 File management blueprint.
 
-POST   /api/files          — upload one or more files
-POST   /api/files/empty    — create a blank project (no files)
-GET    /api/files          — list owned + shared files
-PATCH  /api/files/<id>     — rename
-DELETE /api/files/<id>     — delete
+POST   /api/files            — upload one or more files
+POST   /api/files/empty      — create a blank project (no files)
+POST   /api/files/from-url   — import a URL (Google Doc, webpage, etc.)
+GET    /api/files            — list owned + shared files
+PATCH  /api/files/<id>       — rename
+DELETE /api/files/<id>       — delete
 """
 
 import os
@@ -103,6 +104,63 @@ def list_files():
     return jsonify({
         'owned':  [dict(r) for r in owned],
         'shared': [dict(r) for r in shared],
+    })
+
+
+@file_bp.route('/api/files/from-url', methods=['POST'])
+@requires_auth_api
+def import_from_url():
+    from url_fetcher import fetch_url
+    user = get_current_user()
+    data = request.get_json() or {}
+    url = (data.get('url') or '').strip()
+    display_name = (data.get('displayName') or '').strip()
+    initial_prompt = (data.get('initialPrompt') or '').strip()
+
+    if not url:
+        return jsonify({'error': 'url required'}), 400
+
+    try:
+        fetched = fetch_url(url)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 422
+    except Exception:
+        current_app.logger.error('URL fetch error', exc_info=True)
+        return jsonify({'error': 'Could not fetch the URL. Please check it and try again.'}), 500
+
+    text = fetched['text']
+    source_type = fetched['source_type']
+    final_name = display_name or fetched.get('title') or 'Imported document'
+
+    # Classify the extracted text using the same extractor path as text uploads
+    from extractor import extract_document
+    try:
+        result = extract_document(text.encode('utf-8'), 'text/plain', final_name + '.txt')
+    except Exception:
+        current_app.logger.warning('URL import: extractor failed, using raw text', exc_info=True)
+        result = {'text': text, 'file_type': source_type}
+
+    file_id = _gen_id()
+    text_file = _save_text(user['id'], result['text'])
+
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO files"
+            " (id, user_id, original_name, display_name, file_type, file_path,"
+            "  original_mime_type, initial_prompt)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (file_id, user['id'], url, final_name, result['file_type'], '',
+             'text/plain', initial_prompt or None),
+        )
+        conn.execute(
+            _SQL_INSERT_SOURCE_FILE_NEW,
+            (_gen_id(), file_id, final_name, text_file, 'text/plain', None, 'data'),
+        )
+
+    return jsonify({
+        'id':           file_id,
+        'display_name': final_name,
+        'file_type':    result['file_type'],
     })
 
 
