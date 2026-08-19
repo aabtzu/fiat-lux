@@ -110,7 +110,6 @@ def list_files():
 @file_bp.route('/api/files/from-url', methods=['POST'])
 @requires_auth_api
 def import_from_url():
-    from url_fetcher import fetch_url
     user = get_current_user()
     data = request.get_json() or {}
     url = (data.get('url') or '').strip()
@@ -121,6 +120,7 @@ def import_from_url():
         return jsonify({'error': 'url required'}), 400
 
     try:
+        from url_fetcher import fetch_url
         fetched = fetch_url(url)
     except ValueError as e:
         return jsonify({'error': str(e)}), 422
