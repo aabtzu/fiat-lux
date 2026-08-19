@@ -31,6 +31,16 @@ def create_app() -> Flask:
     init_db_path(data_dir)
     initialise_schema()
 
+    if os.environ.get('LOCAL_DEV', '').lower() in ('1', 'true', 'yes'):
+        from auth import _DEV_USER, _hash_password
+        from db import db as _db
+        with _db() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO users (id, email, password_hash, display_name)"
+                " VALUES (?, ?, ?, ?)",
+                (_DEV_USER['id'], _DEV_USER['email'], _hash_password('devpassword'), _DEV_USER['display_name']),
+            )
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(file_bp)
