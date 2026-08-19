@@ -2,7 +2,7 @@
  * dashboard.js — upload, delete, rename
  */
 
-import { postJSON, showToast, showConfirm, showInput } from './app.js';
+import { postJSON, parseJson, showToast, showConfirm, showInput } from './app.js';
 
 let _folderCache = null;
 let _categoryCache = null;
@@ -10,7 +10,7 @@ async function loadFolderSuggestions() {
   if (_folderCache) return { folders: _folderCache, categories: _categoryCache };
   try {
     const res = await fetch('/api/folders');
-    const data = await res.json();
+    const data = await parseJson(res);
     _folderCache = data.folders || [];
     _categoryCache = data.categories || [];
   } catch {
@@ -210,7 +210,7 @@ async function handleUpload(files, displayName = '', initialPrompt = '') {
 
   try {
     const res = await fetch('/api/files', { method: 'POST', body: formData });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     showToast('File uploaded successfully');
     location.reload();
@@ -231,7 +231,7 @@ async function handleImportFromUrl(url, displayName, initialPrompt) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, displayName, initialPrompt }),
     });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     urlInput.value = '';
     window.location.href = `/view/${data.id}`;
@@ -249,7 +249,7 @@ async function handleCreateEmpty(displayName, initialPrompt) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ displayName, initialPrompt }),
     });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     window.location.href = `/view/${data.id}`;
   } catch (err) {
@@ -358,7 +358,7 @@ fileList.addEventListener('click', async (e) => {
   try {
     const res = await fetch(`/api/files/${id}`, { method: 'DELETE' });
     if (!res.ok) {
-      const d = await res.json();
+      const d = await parseJson(res);
       throw new Error(d.error || `HTTP ${res.status}`);
     }
     const card = fileList.querySelector(`.file-card[data-id="${id}"]`);
@@ -384,7 +384,7 @@ fileList.addEventListener('click', async (e) => {
   try {
     btn.disabled = true;
     const res = await fetch(`/api/files/${id}/duplicate`, { method: 'POST' });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     showToast('Duplicated — drop new files to replace data');
     location.reload();
@@ -431,7 +431,7 @@ fileList.addEventListener('click', async (e) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ folder: value }),
     });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     clearFolderCache();
     showToast(value ? `Moved to "${value}"` : 'Moved to Uncategorized');
@@ -466,7 +466,7 @@ fileList.addEventListener('click', async (e) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file_type: value }),
     });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     clearFolderCache();
     btn.textContent = data.file_type;
@@ -516,7 +516,7 @@ function startRename(el, id) {
         body: JSON.stringify({ displayName: newName }),
       });
       if (!res.ok) {
-        const d = await res.json();
+        const d = await parseJson(res);
         throw new Error(d.error || `HTTP ${res.status}`);
       }
       showToast('Renamed');

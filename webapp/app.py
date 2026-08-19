@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()  # must run before any local imports that read env vars at module level
 
 from datetime import timedelta
-from flask import Flask
+from flask import Flask, jsonify, request
 from db import init_db_path, initialise_schema
 from auth_routes import auth_bp
 from main_routes import main_bp
@@ -62,6 +62,25 @@ def create_app() -> Flask:
         for ch in file_type:
             h = (h * 31 + ord(ch)) & 0xFFFF
         return _BADGE_COLORS[h % len(_BADGE_COLORS)]
+
+    @app.errorhandler(404)
+    def not_found(e):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Not found'}), 404
+        return 'Page not found', 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Method not allowed'}), 405
+        return 'Method not allowed', 405
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        app.logger.error('Unhandled server error', exc_info=e)
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Server error. Please try again.'}), 500
+        return 'Internal server error', 500
 
     return app
 
