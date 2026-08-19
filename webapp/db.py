@@ -187,6 +187,8 @@ def initialise_schema():
             conn.execute("ALTER TABLE files ADD COLUMN instructions TEXT")
         if 'folder' not in files_cols:
             conn.execute("ALTER TABLE files ADD COLUMN folder TEXT")
+        if 'initial_prompt' not in files_cols:
+            conn.execute("ALTER TABLE files ADD COLUMN initial_prompt TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_files_folder ON files(user_id, folder)")
 
     # Run after the with-block so we operate on a fresh connection without an
