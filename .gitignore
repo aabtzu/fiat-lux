@@ -1,8 +1,8 @@
 .DS_Store
 
-# User data (not for version control)
-data/imports/
-data/storage.json
+# User data and local DB (not for version control)
+data/
+.planning/
 
 # Environment files (may contain secrets)
 .env
