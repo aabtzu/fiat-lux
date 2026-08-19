@@ -3,6 +3,22 @@
  */
 
 /**
+ * Parse a fetch Response as JSON, with a readable fallback when the server
+ * returns HTML (e.g. a Render 502 or Flask HTML error page).
+ */
+export async function parseJson(res) {
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    throw new Error(`Server error (HTTP ${res.status}). Please try again.`);
+  }
+  try {
+    return await res.json();
+  } catch {
+    throw new Error(`Server error (HTTP ${res.status}). Please try again.`);
+  }
+}
+
+/**
  * POST JSON to a URL and return the parsed response.
  */
 export async function postJSON(url, data) {
@@ -11,7 +27,7 @@ export async function postJSON(url, data) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  const json = await res.json();
+  const json = await parseJson(res);
   if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
   return json;
 }

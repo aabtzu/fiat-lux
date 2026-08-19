@@ -2,7 +2,7 @@
  * view.js — visualization view page
  */
 
-import { showToast, showInput } from './app.js';
+import { showToast, showInput, parseJson } from './app.js';
 
 const { fileId, initialHtml, chatHistory, initialPrompt, instructions, canEdit } = window.VIEW_DATA;
 
@@ -157,7 +157,7 @@ document.getElementById('sources-chips')?.addEventListener('click', async (e) =>
   const sfId = btn.dataset.sfId;
   try {
     const res = await fetch(`/api/source-files/${sfId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!res.ok) throw new Error((await parseJson(res)).error);
     btn.closest('.source-chip').remove();
     // Update count label
     const chips = document.querySelectorAll('.source-chip');
@@ -205,7 +205,7 @@ async function sendMessage(message) {
       signal:  abortCtrl.signal,
     });
 
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
     removeTyping();
@@ -338,7 +338,7 @@ document.getElementById('duplicate-btn')?.addEventListener('click', async (e) =>
   btn.disabled = true;
   try {
     const res = await fetch(`/api/files/${fileId}/duplicate`, { method: 'POST' });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     showToast('Duplicated — opening now…');
     window.location.href = `/view/${data.id}`;
@@ -355,7 +355,7 @@ document.getElementById('duplicate-btn')?.addEventListener('click', async (e) =>
 async function fetchFolderSuggestions() {
   try {
     const res = await fetch('/api/folders');
-    const data = await res.json();
+    const data = await parseJson(res);
     return { folders: data.folders || [], categories: data.categories || [] };
   } catch {
     return { folders: [], categories: [] };
@@ -382,7 +382,7 @@ document.getElementById('folder-crumb')?.addEventListener('click', async (e) => 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ folder: value }),
     });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     showToast(value ? `Moved to "${value}"` : 'Removed from folder');
     location.reload();
@@ -410,7 +410,7 @@ document.getElementById('category-edit-btn')?.addEventListener('click', async (e
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file_type: value }),
     });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     btn.textContent = data.file_type;
     btn.dataset.current = data.file_type;
@@ -489,7 +489,7 @@ document.getElementById('instructions-save')?.addEventListener('click', async (e
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instructions: text }),
     });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     savedInstructions = (data.instructions || '').trim();
     refreshInstructionsIndicator();
@@ -518,7 +518,7 @@ async function pinSuggestionToInstructions(suggestion) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ instructions: merged }),
   });
-  const data = await res.json();
+  const data = await parseJson(res);
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   savedInstructions = (data.instructions || '').trim();
   refreshInstructionsIndicator();
@@ -601,7 +601,7 @@ document.getElementById('copy-python')?.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ currentHtml }),
     });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     if (!data.code) throw new Error('No Python code returned');
     const blob = new Blob([data.code], { type: 'text/x-python' });
@@ -712,7 +712,7 @@ async function addFilesToDocument(files, note = '', isStyleRef = false) {
 
   try {
     const res = await fetch('/api/files', { method: 'POST', body: formData });
-    const data = await res.json();
+    const data = await parseJson(res);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
     // Update sources drawer and label
