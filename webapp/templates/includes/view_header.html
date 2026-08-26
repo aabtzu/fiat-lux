@@ -1,5 +1,5 @@
-<header class="mb-3 flex-shrink-0 flex items-center justify-between">
-  <div>
+<header class="mb-3 flex-shrink-0 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+  <div class="min-w-0">
     <a href="{{ url_for('main.dashboard') }}"
        class="inline-flex items-center text-gray-500 hover:text-gray-700 text-sm mb-1 transition">
       <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -32,10 +32,10 @@
         Add to folder
       </button>
     {% endif %}
-    <h1 class="text-xl font-bold text-gray-800">{{ file.display_name }}</h1>
+    <h1 class="text-lg lg:text-xl font-bold text-gray-800 break-words">{{ file.display_name }}</h1>
   </div>
 
-  <div class="flex items-center gap-3">
+  <div class="flex flex-wrap items-center gap-2 lg:gap-3 lg:flex-nowrap lg:flex-shrink-0">
     {% include "includes/user_menu.html" %}
     {% if access != 'owner' %}
       <span class="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">Shared with you</span>

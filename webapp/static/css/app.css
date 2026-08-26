@@ -82,7 +82,10 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 768px) {
+/* Below Tailwind's md breakpoint the chat covers the screen instead of
+   sitting beside the visualization. Keep 767.98px in sync with
+   CHAT_FULLSCREEN in view.js. */
+@media (max-width: 767.98px) {
   .chat-panel {
     position: fixed;
     inset: 0;

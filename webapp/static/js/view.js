@@ -142,6 +142,12 @@ function setChatOpen(open) {
   chatOpen.classList.toggle('hidden', open);
 }
 
+// Below md the chat panel is a full-screen overlay (see app.css), so leaving it
+// open would hide the visualization behind it on load. Keep in sync with the
+// media query in app.css.
+const CHAT_FULLSCREEN = window.matchMedia('(max-width: 767.98px)');
+if (CHAT_FULLSCREEN.matches) setChatOpen(false);
+
 // ---------------------------------------------------------------------------
 // Sources drawer
 // ---------------------------------------------------------------------------
