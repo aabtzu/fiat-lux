@@ -49,7 +49,7 @@ Tue, Fri: 1:35 pm - 5:05 pm
 
 | Feature | Supported |
 |---|---|
-| **Upload formats** — PDF, Word, Excel, CSV, images, text | ✅ |
+| **Upload formats** — PDF, Word, Excel, CSV, JSON/JSONL, images, text | ✅ |
 | **Multi-file datasets** — combine files into one document | ✅ |
 | **AI extraction** — Claude parses and classifies documents | ✅ |
 | **Chat-driven visualization** — generate and refine via conversation | ✅ |

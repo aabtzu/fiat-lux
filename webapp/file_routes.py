@@ -287,7 +287,7 @@ def upload_files():
         return jsonify({'error': msg}), 500
     except Exception as e:
         current_app.logger.error('Upload error', exc_info=True)
-        msg = str(e) if current_app.debug else 'Could not process the file. Make sure it\'s a supported format (PDF, Word, Excel, CSV, image, or text).'
+        msg = str(e) if current_app.debug else 'Could not process the file. Make sure it\'s a supported format (PDF, Word, Excel, CSV, JSON, image, or text).'
         return jsonify({'error': msg}), 500
 
 

@@ -5,13 +5,15 @@ Supports:
   PDF, images (JPG/PNG/GIF/WEBP) → Claude API
   DOCX                            → python-docx (optional, falls back to text)
   XLSX / XLS / CSV                → pandas
-  plain text / JSON               → read directly
+  JSON / JSONL / NDJSON           → parsed directly, records become table data
+  plain text                      → read directly
 
 Returns {'text': str, 'file_type': str}
 where file_type ∈ {'schedule', 'invoice', 'healthcare', 'unknown'}
 """
 
 import logging
+import math
 import os
 import re
 import json
@@ -34,6 +36,9 @@ MIME_TYPES = {
     'gif':  'image/gif',
     'webp': 'image/webp',
     'csv':  'text/csv',
+    'json': 'application/json',
+    'jsonl': 'application/x-ndjson',
+    'ndjson': 'application/x-ndjson',
 }
 
 _EXTRACTION_PROMPT = """You are analyzing a document to extract its content.
@@ -201,6 +206,152 @@ def _classify_text(text: str) -> dict:
     return _parse(resp.content[0].text)
 
 
+# ---------------------------------------------------------------------------
+# JSON / JSONL
+# ---------------------------------------------------------------------------
+
+_JSON_ROW_LIMIT    = 5000     # max records kept as table_data
+_JSON_META_LIMIT   = 100      # max flattened metadata fields
+_JSON_SAMPLE_ROWS  = 25       # records shown to Claude for classification
+_JSON_SAMPLE_CHARS = 8000     # cap on the sample sent to Claude
+_JSON_TEXT_CHARS   = 200000   # cap on the text persisted for chat context
+_JSON_MAX_DEPTH    = 6        # how deep to search for records / flatten nesting
+
+
+def _load_json(file_bytes: bytes):
+    """Parse JSON, or JSONL/NDJSON (one value per line). Raises ValueError if neither."""
+    try:
+        text = file_bytes.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = file_bytes.decode('latin-1')
+    text = text.strip()
+    if not text:
+        raise ValueError('File is empty')
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        rows = []
+        for line in text.splitlines():
+            line = line.strip().rstrip(',')
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                raise ValueError(f'Not valid JSON or JSONL: {e.msg} (line {e.lineno})') from e
+        if not rows:
+            raise ValueError('Not valid JSON') from e
+        return rows
+
+
+def _is_record_list(value) -> bool:
+    return isinstance(value, list) and len(value) > 0 and all(isinstance(i, dict) for i in value)
+
+
+def _find_records(obj, depth: int = 0):
+    """Return the longest list-of-objects found in obj, or None."""
+    if _is_record_list(obj):
+        return obj
+    if isinstance(obj, dict) and depth < _JSON_MAX_DEPTH:
+        best = None
+        for v in obj.values():
+            found = _find_records(v, depth + 1)
+            if found is not None and (best is None or len(found) > len(best)):
+                best = found
+        return best
+    return None
+
+
+def _flatten_value(value):
+    """Reduce a leaf value to something a table cell can hold."""
+    if isinstance(value, dict):
+        return json.dumps(value, default=str, ensure_ascii=False)[:500]
+    if isinstance(value, list):
+        if all(not isinstance(i, (dict, list)) for i in value):
+            return ', '.join('' if i is None else str(i) for i in value[:50])
+        return json.dumps(value, default=str, ensure_ascii=False)[:500]
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return None
+    return value
+
+
+def _flatten_record(obj: dict, prefix: str = '', out: dict = None, depth: int = 0) -> dict:
+    """Flatten a nested object to one level; nested keys are joined with '_'."""
+    out = {} if out is None else out
+    for k, v in obj.items():
+        key = f'{prefix}_{k}' if prefix else str(k)
+        if isinstance(v, dict) and depth < _JSON_MAX_DEPTH:
+            _flatten_record(v, key, out, depth + 1)
+        else:
+            out[key] = _flatten_value(v)
+    return out
+
+
+def _json_records(records: list) -> list:
+    return [_flatten_record(r) for r in records[:_JSON_ROW_LIMIT]]
+
+
+def _json_metadata(obj, skip, prefix: str = '', out: dict = None, depth: int = 0) -> dict:
+    """Collect scalar fields living outside the record list as flat metadata."""
+    out = {} if out is None else out
+    if not isinstance(obj, dict) or depth >= _JSON_MAX_DEPTH:
+        return out
+    for k, v in obj.items():
+        if v is skip or len(out) >= _JSON_META_LIMIT:
+            continue
+        key = f'{prefix}_{k}' if prefix else str(k)
+        if isinstance(v, dict):
+            _json_metadata(v, skip, key, out, depth + 1)
+        elif isinstance(v, list):
+            if not _is_record_list(v) and all(not isinstance(i, (dict, list)) for i in v):
+                out[key] = _flatten_value(v)
+        else:
+            out[key] = _flatten_value(v)
+    return out
+
+
+def _json_text(data, filename: str, limit: int, note: str = '') -> str:
+    header = f'JSON file: {filename}'
+    if note:
+        header += f' — {note}'
+    dumped = json.dumps(data, indent=2, default=str, ensure_ascii=False)
+    if len(dumped) > limit:
+        dumped = dumped[:limit] + f'\n… [truncated — {len(dumped):,} characters total]'
+    return f'{header}\n\n{dumped}'
+
+
+def _extract_json(file_bytes: bytes, filename: str) -> dict:
+    """
+    Parse a JSON/JSONL file and derive table_data deterministically, then use
+    Claude only to label the document type and pull out any summary fields.
+    """
+    data = _load_json(file_bytes)
+
+    records = _find_records(data)
+    if records is None and isinstance(data, list) and data:
+        records = [v if isinstance(v, dict) else {'value': v} for v in data]
+
+    table = _json_records(records) if records else None
+    meta  = _json_metadata(data, records) if isinstance(data, dict) else {}
+
+    note = ''
+    if records:
+        note = f'{len(records):,} records'
+        if len(records) > _JSON_ROW_LIMIT:
+            note += f' (first {_JSON_ROW_LIMIT:,} kept as table data)'
+
+    # Keep the classification sample small so the model's echo fits in max_tokens
+    sample = {'metadata': meta, 'records': table[:_JSON_SAMPLE_ROWS]} if table else data
+    result = _classify_text(_json_text(sample, filename, _JSON_SAMPLE_CHARS, note))
+
+    # Parsed values beat anything the model re-typed
+    result['text']       = _json_text(data, filename, _JSON_TEXT_CHARS, note)
+    result['table_data'] = table
+    if meta:
+        result['metadata'] = {**(result.get('metadata') or {}), **meta}
+    return result
+
+
 def extract_document(file_bytes: bytes, mime_type: str, filename: str) -> dict:
     """
     Extract text and classify a document.
@@ -242,6 +393,13 @@ def extract_document(file_bytes: bytes, mime_type: str, filename: str) -> dict:
         result = _classify_text(df.to_csv(index=False))
         result['table_data'] = _df_to_records(df)
         return result
+
+    if (mime_type in ('application/json', 'application/x-ndjson')
+            or filename.lower().endswith(('.json', '.jsonl', '.ndjson'))):
+        try:
+            return _extract_json(file_bytes, filename)
+        except ValueError:
+            logger.warning('JSON parse failed for %s — falling back to plain text', filename)
 
     # Default: plain text
     try:
