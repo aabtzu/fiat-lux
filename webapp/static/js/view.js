@@ -42,6 +42,53 @@ const COPY_BRIDGE = '<scr' + 'ipt>(function(){' +
   '});});}).observe(document.documentElement,{childList:true,subtree:true});' +
 '})();</scr' + 'ipt>';
 
+// Injected into every visualization so model-authored layouts stay usable on a
+// phone. The HTML is generated for a desktop-width iframe, so on a narrow screen
+// wide tables get clipped and fixed-column grids overflow.
+//
+// Only elements that actually overflow are touched, and every change is undone
+// when the frame is wide again — the frame can be transiently narrow before the
+// page stylesheet lands, and a phone can rotate into landscape, so a one-way
+// transform would leave a desktop-width frame stuck in the mobile layout.
+const RESPONSIVE_BRIDGE = '<scr' + 'ipt>' +
+'(function(){' +
+  'var MQ=window.matchMedia("(max-width:640px)");' +
+  'function overflows(el){var d=document.documentElement;' +
+    'return el.scrollWidth>el.clientWidth+1||el.scrollWidth>d.clientWidth+1;}' +
+  'function wrap(t){var p=t.parentNode;' +
+    'if(!p||(p.dataset&&p.dataset.flScroll))return;' +
+    'var d=document.createElement("div");d.dataset.flScroll="1";' +
+    'd.style.cssText="overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%";' +
+    'p.insertBefore(d,t);d.appendChild(t);}' +
+  'function unwrap(d){var t=d.firstElementChild;' +
+    'if(t&&d.parentNode){d.parentNode.insertBefore(t,d);}' +
+    'if(d.parentNode)d.parentNode.removeChild(d);}' +
+  'function narrow(){' +
+    'document.querySelectorAll("table").forEach(function(t){' +
+      'if(overflows(t))wrap(t);});' +
+    'document.querySelectorAll("*").forEach(function(el){' +
+      'if(el.dataset.flGrid)return;' +
+      'if(getComputedStyle(el).display.indexOf("grid")<0)return;' +
+      'if(!overflows(el))return;' +
+      'el.dataset.flGrid=el.style.gridTemplateColumns||"";' +
+      'el.style.gridTemplateColumns="repeat(auto-fit,minmax(120px,1fr))";});}' +
+  'function wide(){' +
+    'document.querySelectorAll("[data-fl-scroll]").forEach(unwrap);' +
+    'document.querySelectorAll("[data-fl-grid]").forEach(function(el){' +
+      'el.style.gridTemplateColumns=el.dataset.flGrid;' +
+      'delete el.dataset.flGrid;});}' +
+  'var busy=false;' +
+  'function apply(){if(busy)return;busy=true;' +
+    'try{MQ.matches?narrow():wide();}finally{busy=false;}}' +
+  'function init(){apply();' +
+    'new MutationObserver(apply).observe(document.documentElement,' +
+      '{childList:true,subtree:true});}' +
+  'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);' +
+  'else setTimeout(init,100);' +
+  'window.addEventListener("resize",apply);' +
+  '(MQ.addEventListener?MQ.addEventListener("change",apply):MQ.addListener(apply));' +
+'})();</scr' + 'ipt>';
+
 // Injected into every visualization to handle CSV export requests from the parent.
 // Parent sends {type:'fl-get-csv'}, iframe replies with {type:'fl-csv-data', tables:[...]}.
 const CSV_BRIDGE = '<scr' + 'ipt>' +
@@ -141,6 +188,12 @@ function setChatOpen(open) {
   chatPanel.classList.toggle('hidden', !open);
   chatOpen.classList.toggle('hidden', open);
 }
+
+// Below md the chat panel is a full-screen overlay (see app.css), so leaving it
+// open would hide the visualization behind it on load. Keep in sync with the
+// media query in app.css.
+const CHAT_FULLSCREEN = window.matchMedia('(max-width: 767.98px)');
+if (CHAT_FULLSCREEN.matches) setChatOpen(false);
 
 // ---------------------------------------------------------------------------
 // Sources drawer
@@ -769,7 +822,8 @@ function updateSourcesUI(newFileNames) {
 
 function setVisualization(html) {
   vizEmpty.classList.add('hidden');
-  const extra = (canEdit ? DRAG_BRIDGE + '\n' : '') + COPY_BRIDGE + '\n' + CSV_BRIDGE;
+  const extra = (canEdit ? DRAG_BRIDGE + '\n' : '') + COPY_BRIDGE + '\n' + CSV_BRIDGE
+              + '\n' + RESPONSIVE_BRIDGE;
   html = html.includes('</body>')
     ? html.replace('</body>', extra + '\n</body>')
     : html + '\n' + extra;
