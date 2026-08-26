@@ -76,6 +76,21 @@
   font-size: 0.875rem;
 }
 
+/* Full-height app shells (view, shared).
+
+   `100vh` on a phone is the LARGE viewport height — the height the page would
+   have with the browser's URL bar retracted. While that bar is showing, the
+   visible area is shorter, so the bottom of a 100vh page sits underneath it.
+   These pages also set overflow:hidden, so the clipped strip cannot be
+   scrolled into view: it is simply gone.
+
+   `100dvh` tracks the area actually visible right now. The plain `100vh`
+   declaration above it is the fallback for browsers without dvh support. */
+.h-viewport {
+  height: 100vh;
+  height: 100dvh;
+}
+
 /* View page — chat panel */
 .chat-panel {
   width: 320px;
@@ -89,6 +104,10 @@
   .chat-panel {
     position: fixed;
     inset: 0;
+    /* `bottom: 0` from inset resolves against the large viewport, which would
+       put the chat input under the URL bar. An explicit height wins over
+       bottom when top is also set. */
+    height: 100dvh;
     width: 100%;
     z-index: 50;
     border-radius: 0;

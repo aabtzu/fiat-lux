@@ -2,7 +2,7 @@
 
 {% block title %}{{ file.display_name }} — FiatLux{% endblock %}
 
-{% block body_class %}h-screen overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200{% endblock %}
+{% block body_class %}h-viewport overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200{% endblock %}
 
 {% block extra_head %}
 <script>
@@ -18,7 +18,7 @@ window.VIEW_DATA = {
 {% endblock %}
 
 {% block content %}
-<div class="h-screen flex flex-col py-4 px-4">
+<div class="h-viewport flex flex-col py-4 px-4">
   <div class="max-w-screen-2xl mx-auto w-full flex flex-col flex-1 min-h-0">
 
     {% include "includes/view_header.html" %}
