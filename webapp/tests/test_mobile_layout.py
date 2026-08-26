@@ -214,6 +214,59 @@ def test_header_stays_stacked_while_the_chat_is_still_a_sidebar(header: str):
 
 
 # ---------------------------------------------------------------------------
+# Full-height app shells
+# ---------------------------------------------------------------------------
+
+FULL_HEIGHT_TEMPLATES = (
+    WEBAPP / "templates" / "view.html",
+    WEBAPP / "templates" / "shared.html",
+)
+
+
+@pytest.mark.parametrize("template", FULL_HEIGHT_TEMPLATES, ids=lambda p: p.name)
+def test_app_shells_do_not_use_h_screen(template):
+    """h-screen is 100vh, which on a phone is the LARGE viewport height.
+
+    While the URL bar is showing, the visible area is shorter, so the bottom of
+    the page sits under it. These shells also set overflow-hidden, so the
+    clipped strip cannot be scrolled to — the last table row or summary card is
+    simply gone.
+    """
+    text = template.read_text()
+    assert "h-screen" not in text, (
+        f"{template.name} must use h-viewport (100dvh), not h-screen (100vh); "
+        f"100vh assumes the browser chrome is retracted, so the bottom of a "
+        f"non-scrolling page is clipped with no way to reach it"
+    )
+    assert "h-viewport" in text, f"{template.name} lost its full-height class"
+
+
+def test_viewport_height_utility_has_a_fallback():
+    css = APP_CSS.read_text()
+    rule = _rule(css, ".h-viewport")
+    assert "100dvh" in rule, ".h-viewport must use dvh so it tracks the visible area"
+    assert "100vh" in rule, (
+        "keep the plain 100vh declaration above the dvh one; it is the fallback "
+        "for browsers that do not understand dvh, which would otherwise get no "
+        "height at all"
+    )
+    assert rule.index("100vh") < rule.index("100dvh"), (
+        "the fallback must come first — the later declaration wins where it is "
+        "understood, so ordering these the other way disables dvh everywhere"
+    )
+
+
+def test_mobile_chat_overlay_is_bounded_by_the_visible_viewport(mobile_css: str):
+    """`inset: 0` alone puts the chat input under the URL bar."""
+    rule = _rule(mobile_css, ".chat-panel")
+    assert "100dvh" in rule, (
+        "the full-screen chat overlay needs an explicit dvh height; bottom: 0 "
+        "from inset resolves against the large viewport, so the input row ends "
+        "up beneath the browser chrome"
+    )
+
+
+# ---------------------------------------------------------------------------
 # The responsive bridge injected into the visualization iframe
 # ---------------------------------------------------------------------------
 
