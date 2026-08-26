@@ -1,0 +1,8 @@
+# Dependencies for the offline unit tests in webapp/tests.
+#
+# Deliberately minimal: extractor.py imports anthropic at module scope, while
+# pandas / pypdf / python-docx are imported lazily inside branches these tests
+# don't exercise. Installing the full requirements.txt would also pull the
+# fiat-lux-agents git dependency, which the tests don't need.
+pytest==9.1.1
+anthropic==1.1.0
