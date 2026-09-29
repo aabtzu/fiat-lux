@@ -3,11 +3,7 @@ Auth blueprint — /login, /register, /logout, /api/auth/me
 """
 
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, flash
-from auth import (
-    register, login, logout_session, get_current_user,
-    set_session, clear_session, SESSION_COOKIE
-)
-from flask import session
+from auth import register, login, get_current_user, set_session, clear_session
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -21,8 +17,8 @@ def login_page():
         email    = request.form.get('email', '').strip()
         password = request.form.get('password', '')
         try:
-            user, session_id = login(email, password)
-            set_session(session_id)
+            user = login(email, password)
+            set_session(user)
             next_url = request.args.get('next') or url_for('main.dashboard')
             return redirect(next_url)
         except ValueError as e:
@@ -41,9 +37,8 @@ def register_page():
         password     = request.form.get('password', '')
         display_name = request.form.get('display_name', '').strip()
         try:
-            user       = register(email, password, display_name)
-            _, session_id = login(email, password)
-            set_session(session_id)
+            user = register(email, password, display_name)
+            set_session(user)
             return redirect(url_for('main.dashboard'))
         except ValueError as e:
             flash(str(e), 'error')
@@ -53,9 +48,6 @@ def register_page():
 
 @auth_bp.route('/logout')
 def logout():
-    session_id = session.get(SESSION_COOKIE)
-    if session_id:
-        logout_session(session_id)
     clear_session()
     return redirect(url_for('auth.login_page'))
 
