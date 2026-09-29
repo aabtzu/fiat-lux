@@ -66,10 +66,18 @@ const RESPONSIVE_BRIDGE = '<scr' + 'ipt>' +
     'if(t&&d.parentNode){d.parentNode.insertBefore(t,d);}' +
     'if(d.parentNode)d.parentNode.removeChild(d);}' +
   'function narrow(){' +
+    'var vw=document.documentElement.clientWidth;' +
     'document.querySelectorAll("table").forEach(function(t){' +
       'var cols=t.rows[0]?t.rows[0].cells.length:0;' +
       'var minW=cols>=2?Math.max(360,cols*180):0;' +
       'if(overflows(t)||cols>=2)wrap(t,minW);});' +
+    // Catch any element with an explicit min-width wider than the viewport
+    // (Claude often writes min-width:600px / min-width:900px on layout wrappers)
+    'document.querySelectorAll("*").forEach(function(el){' +
+      'if(el.dataset.flScroll||el.dataset.flMinW!==undefined)return;' +
+      'if(el.parentElement&&el.parentElement.dataset&&el.parentElement.dataset.flScroll)return;' +
+      'var mw=parseFloat(getComputedStyle(el).minWidth)||0;' +
+      'if(mw>vw+1)wrap(el);});' +
     'document.querySelectorAll("*").forEach(function(el){' +
       'if(el.dataset.flGrid)return;' +
       'if(getComputedStyle(el).display.indexOf("grid")<0)return;' +
