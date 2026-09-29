@@ -20,7 +20,7 @@ from pages_routes import pages_bp
 def create_app() -> Flask:
     app = Flask(__name__)
     app.secret_key = os.environ['SECRET_KEY']
-    app.permanent_session_lifetime = timedelta(days=7)
+    app.permanent_session_lifetime = timedelta(days=30)
 
     data_dir = os.environ.get(
         'DATA_DIR',

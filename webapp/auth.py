@@ -24,7 +24,7 @@ from db import db
 
 
 SESSION_COOKIE = 'fl_session'
-SESSION_DAYS   = 7
+SESSION_DAYS   = 30
 _ID_BYTES      = 16
 
 
