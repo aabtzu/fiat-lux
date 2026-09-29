@@ -32,7 +32,8 @@ def create_app() -> Flask:
     initialise_schema()
 
     if os.environ.get('LOCAL_DEV', '').lower() in ('1', 'true', 'yes'):
-        from auth import _DEV_USER, _hash_password
+        from auth import _DEV_USER
+        from fiat_lux_agents.auth import hash_password as _hash_password
         from db import db as _db
         with _db() as conn:
             conn.execute(

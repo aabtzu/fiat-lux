@@ -1,47 +1,34 @@
 """
 Authentication for Fiat Lux Flask app.
 
-Email/password auth with bcrypt hashing and DB-backed sessions.
-Sessions are stored in the `sessions` table; the session ID is kept in
-a signed Flask cookie.
+Email/password auth with bcrypt hashing. Session data (user id, email,
+display_name) is stored directly in Flask's signed cookie — no sessions table.
 
 Public API:
     register(email, password, display_name)  → user dict or raises ValueError
     login(email, password)                   → user dict or raises ValueError
     logout()                                 → clears session cookie
     get_current_user()                       → user dict or None
+    set_session(user)                        → stores user in Flask session
+    clear_session()                          → removes user from Flask session
     requires_auth                            → decorator (redirects to /login)
     requires_auth_api                        → decorator (returns 401 JSON)
 """
 
 import os
-import secrets
-import bcrypt
-from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import session, redirect, url_for, jsonify, request
+from fiat_lux_agents.auth import hash_password, verify_password
 from db import db
 
 
-SESSION_COOKIE = 'fl_session'
-SESSION_DAYS   = 30
-_ID_BYTES      = 16
+_SESSION_KEY = 'fl_user'
+_ID_BYTES    = 16
 
 
 def _gen_id() -> str:
+    import secrets
     return secrets.token_hex(_ID_BYTES)
-
-
-# ---------------------------------------------------------------------------
-# Password helpers
-# ---------------------------------------------------------------------------
-
-def _hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=10)).decode()
-
-
-def _check_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 # ---------------------------------------------------------------------------
@@ -67,10 +54,7 @@ def get_user_by_id(user_id: str) -> dict | None:
 
 
 def register(email: str, password: str, display_name: str = None) -> dict:
-    """
-    Create a new user. Raises ValueError for invalid input or duplicate email.
-    Returns the new user dict (no password_hash).
-    """
+    """Create a new user. Raises ValueError for invalid input or duplicate email."""
     email = email.lower().strip()
 
     if not email or '@' not in email:
@@ -80,9 +64,9 @@ def register(email: str, password: str, display_name: str = None) -> dict:
     if get_user_by_email(email):
         raise ValueError("An account with that email already exists")
 
-    user_id    = _gen_id()
-    pw_hash    = _hash_password(password)
-    disp_name  = (display_name or '').strip() or email.split('@')[0]
+    user_id   = _gen_id()
+    pw_hash   = hash_password(password)
+    disp_name = (display_name or '').strip() or email.split('@')[0]
 
     with db() as conn:
         conn.execute(
@@ -94,88 +78,47 @@ def register(email: str, password: str, display_name: str = None) -> dict:
 
 
 def login(email: str, password: str) -> dict:
-    """
-    Verify credentials and create a session. Raises ValueError on failure.
-    Returns the user dict (no password_hash) — call set_session() after.
-    """
+    """Verify credentials. Raises ValueError on failure. Returns user dict."""
     user = get_user_by_email(email)
-    if not user or not _check_password(password, user['password_hash']):
+    if not user or not verify_password(password, user['password_hash']):
         raise ValueError("Invalid email or password")
-
-    session_id = _gen_id()
-    expires_at = (datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)).isoformat()
-
-    with db() as conn:
-        conn.execute(
-            "INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)",
-            (session_id, user['id'], expires_at),
-        )
-
     del user['password_hash']
-    return user, session_id
-
-
-def logout_session(session_id: str):
-    """Delete session from DB."""
-    with db() as conn:
-        conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-
-
-def _validate_session(session_id: str) -> dict | None:
-    """Return user dict if session is valid and not expired, else None."""
-    with db() as conn:
-        row = conn.execute(
-            "SELECT s.user_id, s.expires_at, u.id, u.email, u.display_name "
-            "FROM sessions s JOIN users u ON s.user_id = u.id "
-            "WHERE s.id = ?", (session_id,)
-        ).fetchone()
-
-    if not row:
-        return None
-
-    expires_at = datetime.fromisoformat(row['expires_at'])
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) > expires_at:
-        return None
-
-    return {'id': row['id'], 'email': row['email'], 'display_name': row['display_name']}
+    return user
 
 
 # ---------------------------------------------------------------------------
-# Request helpers
+# Session helpers
 # ---------------------------------------------------------------------------
 
 _DEV_USER = {'id': '1769470813561-9fgy4v2', 'email': 'aabtzu@gmail.com', 'display_name': 'amit'}
+_LOCAL_DEV = os.getenv('LOCAL_DEV', '').lower() in ('1', 'true', 'yes')
 
 
 def get_current_user() -> dict | None:
     """Return the authenticated user for this request, or None."""
     if _LOCAL_DEV:
         return _DEV_USER
-    session_id = session.get(SESSION_COOKIE)
-    if not session_id:
-        return None
-    return _validate_session(session_id)
+    return session.get(_SESSION_KEY)
 
 
-def set_session(session_id: str):
-    """Store session ID in Flask signed cookie."""
-    session[SESSION_COOKIE] = session_id
+def set_session(user: dict):
+    """Store user dict in Flask signed cookie."""
+    session[_SESSION_KEY] = {
+        'id': user['id'],
+        'email': user['email'],
+        'display_name': user.get('display_name'),
+    }
     session.permanent = True
 
 
 def clear_session():
-    """Remove session from cookie."""
-    session.pop(SESSION_COOKIE, None)
+    """Remove user from session."""
+    session.pop(_SESSION_KEY, None)
 
 
 # ---------------------------------------------------------------------------
 # Decorators
 # ---------------------------------------------------------------------------
-
-_LOCAL_DEV = os.getenv('LOCAL_DEV', '').lower() in ('1', 'true', 'yes')
-
 
 def requires_auth(f):
     """Redirect unauthenticated users to /login (for HTML routes)."""
