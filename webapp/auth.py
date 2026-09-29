@@ -1,13 +1,16 @@
 """
 Authentication for Fiat Lux Flask app.
 
-Email/password auth with bcrypt hashing. Session data (user id, email,
-display_name) is stored directly in Flask's signed cookie — no sessions table.
+Email/password auth. Session data (user id, email, display_name) is stored
+in Flask's signed cookie — no sessions table.
+
+Uses fiat_lux_agents.auth.AuthDB for password hashing and credential
+verification. User creation uses direct SQL because fiat-lux generates
+text primary keys (AuthDB assumes integer auto-increment ids).
 
 Public API:
     register(email, password, display_name)  → user dict or raises ValueError
     login(email, password)                   → user dict or raises ValueError
-    logout()                                 → clears session cookie
     get_current_user()                       → user dict or None
     set_session(user)                        → stores user in Flask session
     clear_session()                          → removes user from Flask session
@@ -16,39 +19,30 @@ Public API:
 """
 
 import os
+import secrets
 from functools import wraps
 from flask import session, redirect, url_for, jsonify, request
-from fiat_lux_agents.auth import hash_password, verify_password
+from fiat_lux_agents.auth.db import AuthDB
 from db import db
 
-
 _SESSION_KEY = 'fl_user'
-_ID_BYTES    = 16
+
+_auth_db = AuthDB(db, use_postgres=False, login_field="email", has_display_name=True)
 
 
 def _gen_id() -> str:
-    import secrets
-    return secrets.token_hex(_ID_BYTES)
+    return secrets.token_hex(16)
 
 
 # ---------------------------------------------------------------------------
 # User operations
 # ---------------------------------------------------------------------------
 
-def get_user_by_email(email: str) -> dict | None:
-    with db() as conn:
-        row = conn.execute(
-            "SELECT id, email, password_hash, display_name, created_at "
-            "FROM users WHERE email = ?", (email.lower().strip(),)
-        ).fetchone()
-    return dict(row) if row else None
-
-
 def get_user_by_id(user_id: str) -> dict | None:
     with db() as conn:
         row = conn.execute(
-            "SELECT id, email, display_name, created_at "
-            "FROM users WHERE id = ?", (user_id,)
+            "SELECT id, email, display_name, created_at FROM users WHERE id = ?",
+            (user_id,),
         ).fetchone()
     return dict(row) if row else None
 
@@ -61,9 +55,10 @@ def register(email: str, password: str, display_name: str = None) -> dict:
         raise ValueError("Invalid email address")
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters")
-    if get_user_by_email(email):
+    if _auth_db.email_exists(email):
         raise ValueError("An account with that email already exists")
 
+    from fiat_lux_agents.auth.db import hash_password
     user_id   = _gen_id()
     pw_hash   = hash_password(password)
     disp_name = (display_name or '').strip() or email.split('@')[0]
@@ -79,10 +74,9 @@ def register(email: str, password: str, display_name: str = None) -> dict:
 
 def login(email: str, password: str) -> dict:
     """Verify credentials. Raises ValueError on failure. Returns user dict."""
-    user = get_user_by_email(email)
-    if not user or not verify_password(password, user['password_hash']):
+    user = _auth_db.authenticate(email, password)
+    if not user:
         raise ValueError("Invalid email or password")
-    del user['password_hash']
     return user
 
 
