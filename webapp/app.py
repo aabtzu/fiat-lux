@@ -49,6 +49,10 @@ def create_app() -> Flask:
     app.register_blueprint(share_bp)
     app.register_blueprint(pages_bp)
 
+    if os.environ.get('DEBUG_SECRET'):
+        from debug_routes import debug_bp
+        app.register_blueprint(debug_bp)
+
     from auth import get_current_user
 
     @app.context_processor
